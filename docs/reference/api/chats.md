@@ -59,7 +59,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
 | `after_id`   | query | string(uuid)  | false    | After ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `limit`      | query | integer       | false    | Page limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `offset`     | query | integer       | false    | Page offset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `project_id` | query | string(uuid)  | false    | Only chats in this project.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `project_id` | query | string(uuid)  | false    | Only chats in this project. Requires the chat-projects experiment.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### Example responses
 
@@ -2092,59 +2092,6 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## List chat attachments
-
-### Code samples
-
-```sh
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/chats/{chat}/attachments \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /api/v2/chats/{chat}/attachments`
-
-Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.
-
-### Parameters
-
-| Name        | In    | Type         | Required | Description                                          |
-|-------------|-------|--------------|----------|------------------------------------------------------|
-| `chat`      | path  | string(uuid) | true     | Chat ID                                              |
-| `before_id` | query | integer      | false    | Return attachments from messages with id < before_id |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "attachments": [
-    {
-      "file": {
-        "data": "string",
-        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-        "media_type": "string",
-        "name": "string",
-        "type": "file"
-      },
-      "message_id": 0,
-      "part_index": 0,
-      "role": "user"
-    }
-  ]
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                         |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatAttachmentsResponse](schemas.md#codersdkchatattachmentsresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Refresh chat context
 
 ### Code samples
@@ -2934,6 +2881,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
 ```json
 {
   "has_more": true,
+  "history_version": 0,
   "messages": [
     {
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -4133,10 +4081,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 ### Parameters
 
-| Name       | In    | Type         | Required | Description                                             |
-|------------|-------|--------------|----------|---------------------------------------------------------|
-| `chat`     | path  | string(uuid) | true     | Chat ID                                                 |
-| `after_id` | query | integer      | false    | Skip snapshot messages with id at or before this cursor |
+| Name             | In    | Type         | Required | Description                                                                              |
+|------------------|-------|--------------|----------|------------------------------------------------------------------------------------------|
+| `chat`           | path  | string(uuid) | true     | Chat ID                                                                                  |
+| `after_id`       | query | integer      | false    | Skip snapshot messages with id at or before this cursor                                  |
+| `after_revision` | query | integer      | false    | Skip history changed at or before this history_version, as returned by the messages page |
 
 ### Example responses
 
@@ -4392,6 +4341,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "status_code": 0
     },
     "status": {
+      "history_version": 0,
       "status": "waiting"
     },
     "type": "message_part"
@@ -4459,7 +4409,7 @@ Status Code **200**
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» skill_description`            | string                                                                           | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
-| `»»» skill_dir`                    | string                                                                           | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files, and shown to the model for an invoked workspace skill so it can run the skill's scripts.                                                                                                                                             |
+| `»»» skill_dir`                    | string                                                                           | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
 | `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of the skill.                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» skill_source`                 | [codersdk.ChatSkillSource](schemas.md#codersdkchatskillsource)                   | false    |              | Skill source is where the invoked skill of a skill-invocation part is stored.                                                                                                                                                                                                                                                                                                                              |
 | `»»» source_id`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4510,6 +4460,7 @@ Status Code **200**
 | `»» retrying_at`                   | string(date-time)                                                                | false    |              | Retrying at is the timestamp when the retry will be attempted.                                                                                                                                                                                                                                                                                                                                             |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
 | `» status`                         | [codersdk.ChatStreamStatus](schemas.md#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» history_version`               | integer                                                                          | false    |              | History version is the chat history_version after the message events sent before this status. Pass it as after_revision when reconnecting.                                                                                                                                                                                                                                                                 |
 | `»» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» type`                           | [codersdk.ChatStreamEventType](schemas.md#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 

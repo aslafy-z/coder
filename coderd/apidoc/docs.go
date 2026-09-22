@@ -2963,7 +2963,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Only chats in this project.",
+                        "description": "Only chats in this project. Requires the chat-projects experiment.",
                         "name": "project_id",
                         "in": "query"
                     }
@@ -4131,48 +4131,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v2/chats/{chat}/attachments": {
-            "get": {
-                "description": "Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List chat attachments",
-                "operationId": "list-chat-attachments",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Return attachments from messages with id \u003c before_id",
-                        "name": "before_id",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatAttachmentsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/chats/{chat}/clear": {
             "post": {
                 "description": "Resets the model context of an idle or errored chat,\nclearing any stored error. The reset commits\nsynchronously with no model call: the transcript is\npreserved and the next prompt starts from a fresh\ncontext.",
@@ -4734,6 +4692,12 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Skip snapshot messages with id at or before this cursor",
                         "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Skip history changed at or before this history_version, as returned by the messages page",
+                        "name": "after_revision",
                         "in": "query"
                     }
                 ],
@@ -19229,7 +19193,6 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAppStatusState"
                 },
                 "uri": {
-                    "description": "Only http, https, and file URIs are kept; others are dropped.",
                     "type": "string"
                 }
             }
@@ -21640,79 +21603,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatAttachment": {
-            "type": "object",
-            "properties": {
-                "file": {
-                    "$ref": "#/definitions/codersdk.ChatAttachmentFile"
-                },
-                "message_id": {
-                    "type": "integer"
-                },
-                "part_index": {
-                    "description": "PartIndex is the file part's position in the message content the\nmessages endpoint returns.",
-                    "type": "integer"
-                },
-                "role": {
-                    "$ref": "#/definitions/codersdk.ChatAttachmentRole"
-                }
-            }
-        },
-        "codersdk.ChatAttachmentFile": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Data holds an inline file's bytes, which JSON carries as a base64 string.",
-                    "type": "string",
-                    "format": "byte"
-                },
-                "file_id": {
-                    "description": "Omitted, not null, for an inline file.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "media_type": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "type": {
-                    "$ref": "#/definitions/codersdk.ChatAttachmentFileType"
-                }
-            }
-        },
-        "codersdk.ChatAttachmentFileType": {
-            "type": "string",
-            "enum": [
-                "file"
-            ],
-            "x-enum-varnames": [
-                "ChatAttachmentFileTypeFile"
-            ]
-        },
-        "codersdk.ChatAttachmentRole": {
-            "type": "string",
-            "enum": [
-                "user",
-                "assistant"
-            ],
-            "x-enum-varnames": [
-                "ChatAttachmentRoleUser",
-                "ChatAttachmentRoleAssistant"
-            ]
-        },
-        "codersdk.ChatAttachmentsResponse": {
-            "type": "object",
-            "properties": {
-                "attachments": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatAttachment"
-                    }
-                }
-            }
-        },
         "codersdk.ChatAutoArchiveDaysResponse": {
             "type": "object",
             "properties": {
@@ -22473,7 +22363,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "skill_dir": {
-                    "description": "SkillDir is the absolute path to the skill directory inside\nthe workspace filesystem. Internal only: used by\nread_skill/read_skill_file tools to locate skill files, and\nshown to the model for an invoked workspace skill so it can\nrun the skill's scripts.",
+                    "description": "SkillDir is the absolute path to the skill directory inside\nthe workspace filesystem. Internal only: used by\nread_skill/read_skill_file tools to locate skill files.",
                     "type": "string"
                 },
                 "skill_name": {
@@ -22615,6 +22505,10 @@ const docTemplate = `{
             "properties": {
                 "has_more": {
                     "type": "boolean"
+                },
+                "history_version": {
+                    "description": "HistoryVersion is the chat history_version this page was read at.\nPass it as after_revision when opening the stream.",
+                    "type": "integer"
                 },
                 "messages": {
                     "type": "array",
@@ -23748,6 +23642,10 @@ const docTemplate = `{
         "codersdk.ChatStreamStatus": {
             "type": "object",
             "properties": {
+                "history_version": {
+                    "description": "HistoryVersion is the chat history_version after the message events\nsent before this status. Pass it as after_revision when reconnecting.",
+                    "type": "integer"
+                },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 }
@@ -24025,10 +23923,6 @@ const docTemplate = `{
         "codersdk.ConnectionLogSSHInfo": {
             "type": "object",
             "properties": {
-                "client_session_id": {
-                    "description": "ClientSessionID is set by the client and isn't guaranteed to be unique.",
-                    "type": "string"
-                },
                 "connection_id": {
                     "type": "string",
                     "format": "uuid"
@@ -24635,7 +24529,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "model_invocable": {
-                    "description": "ModelInvocable defaults to false when the content's frontmatter sets\ndisable-model-invocation: true, and to true otherwise.",
+                    "description": "ModelInvocable defaults to true.",
                     "type": "boolean"
                 }
             }
@@ -26067,7 +25961,7 @@ const docTemplate = `{
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "ai-gateway-reverse-proxy",
-                "chat-project-sharing",
+                "chat-projects",
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
@@ -26083,7 +25977,7 @@ const docTemplate = `{
                 "ExperimentChatACPSubagents": "Enables workspace-local ACP subagent tools in root chats.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
-                "ExperimentChatProjectSharing": "Enables sharing agent chat projects with other users and groups.",
+                "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
@@ -26107,7 +26001,7 @@ const docTemplate = `{
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
-                "Enables sharing agent chat projects with other users and groups.",
+                "Enables organization-scoped projects that group agent chats.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
@@ -26127,7 +26021,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentAIGatewayReverseProxy",
-                "ExperimentChatProjectSharing",
+                "ExperimentChatProjects",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
