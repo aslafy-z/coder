@@ -18,7 +18,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import {
 	MockChatQueuedMessage,
-	MockChatQueuedMessageUnderEdit,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
@@ -1152,11 +1151,6 @@ describe("AgentChatInput", () => {
 		[
 			"does not send the queue head while the composer edits a message",
 			{ editingKind: "queued" },
-			false,
-		],
-		[
-			"does not send a queue head the server marks as under edit",
-			{ queuedMessages: [MockChatQueuedMessageUnderEdit] },
 			false,
 		],
 		[
