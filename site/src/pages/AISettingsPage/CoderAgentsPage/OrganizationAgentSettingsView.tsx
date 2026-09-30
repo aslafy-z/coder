@@ -37,7 +37,6 @@ type OrganizationAgentSettingsViewProps = {
 	overridesRefetchError: unknown;
 	modelsError: unknown;
 	canEdit: boolean;
-	showAdvisor: boolean;
 	saveByContext: ReadonlyMap<
 		TypesGen.ChatModelOverrideContext,
 		SaveModelOverride
@@ -161,7 +160,6 @@ const OrganizationAgentSettingsView: React.FC<
 	overridesRefetchError,
 	modelsError,
 	canEdit,
-	showAdvisor,
 	saveByContext,
 	savingContexts,
 	errorContexts,
@@ -170,12 +168,7 @@ const OrganizationAgentSettingsView: React.FC<
 		overridesLoadError ?? overridesRefetchError ?? modelsError;
 	// The default row only needs the model catalog, so a failed initial
 	// overrides load removes just the override rows.
-	const visibleSettings =
-		overridesLoadError == null
-			? settings.filter(
-					(setting) => setting.context !== "advisor" || showAdvisor,
-				)
-			: [];
+	const visibleSettings = overridesLoadError == null ? settings : [];
 
 	return (
 		<div className="flex flex-col gap-6">

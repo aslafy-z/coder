@@ -28059,7 +28059,7 @@ SELECT
 `
 
 // GetChatAdvisorConfig returns the deployment-wide runtime configuration
-// for the experimental chat advisor as a JSON blob. Callers unmarshal the
+// for the chat advisor as a JSON blob. Callers unmarshal the
 // result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
 // values apply by default.
 func (q *sqlQuerier) GetChatAdvisorConfig(ctx context.Context) (string, error) {
@@ -28572,7 +28572,7 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_advi
 `
 
 // UpsertChatAdvisorConfig stores the deployment-wide runtime configuration
-// for the experimental chat advisor. Callers marshal codersdk.AdvisorConfig
+// for the chat advisor. Callers marshal codersdk.AdvisorConfig
 // to JSON before invoking this query.
 func (q *sqlQuerier) UpsertChatAdvisorConfig(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatAdvisorConfig, value)
