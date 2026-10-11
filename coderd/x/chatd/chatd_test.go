@@ -969,7 +969,8 @@ func TestArchivedChatRejectsMutations(t *testing.T) {
 			return err
 		},
 		"SubmitToolResults": func(ctx context.Context) error {
-			return server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{ChatID: chat.ID, UserID: user.ID})
+			_, err := server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{ChatID: chat.ID, UserID: user.ID})
+			return err
 		},
 		"CompactChat": func(ctx context.Context) error {
 			_, err := server.CompactChat(ctx, chat)
@@ -3095,7 +3096,7 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 
 	// 3. Submit tool results via SubmitToolResults.
 	toolResultOutput := json.RawMessage(`{"result":"dynamic tool output"}`)
-	err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+	_, err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        user.ID,
 		ModelConfigID: chatResult.LastModelConfigID,
@@ -3384,7 +3385,7 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 	require.NotEmpty(t, toolCallID)
 
 	// 3. Submit dynamic tool results.
-	err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+	_, err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        user.ID,
 		ModelConfigID: chatResult.LastModelConfigID,
@@ -3533,7 +3534,7 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 			// Wait for all goroutines to be ready.
 			<-ready
 
-			submitErr := server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+			_, submitErr := server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 				ChatID:        chat.ID,
 				UserID:        user.ID,
 				ModelConfigID: chatResult.LastModelConfigID,
@@ -15138,12 +15139,13 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		waitForTurns(ctx, t, h.recorder, 1)
 
 		call := requireToolCallPart(t, chatToolParts(ctx, t, h.db, chat.ID), "my_dynamic_tool")
-		require.NoError(t, h.server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+		_, err = h.server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 			ChatID:        chat.ID,
 			UserID:        h.user.ID,
 			ModelConfigID: waiting.LastModelConfigID,
 			Results:       []codersdk.ToolResult{{ToolCallID: call.ToolCallID, Output: json.RawMessage(`{"ok":true}`)}},
-		}))
+		})
+		require.NoError(t, err)
 		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
 		index := waitForTurns(ctx, t, h.recorder, 2)
 
