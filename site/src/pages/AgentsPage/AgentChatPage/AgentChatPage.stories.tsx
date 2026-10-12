@@ -6,7 +6,7 @@ import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
-import { API, type ChatActionVersion } from "#/api/api";
+import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatDiffContentsKey,
@@ -53,6 +53,7 @@ import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import {
 	buildLongConversation,
+	loadedChatStore,
 	loadedChatStoreQuery,
 	MockWorkingMessages,
 } from "../components/ChatConversation/storyFixtures";
@@ -1343,24 +1344,6 @@ export const WithMessageHistory: Story = {
 			},
 			{ diffUrl: undefined },
 		),
-		// The stream has already reached both edits and their turns ended.
-		webSocket: {
-			"/chats/": [
-				{
-					event: "message",
-					data: JSON.stringify([
-						{
-							type: "checkpoint",
-							chat_id: CHAT_ID,
-							checkpoint: {
-								snapshot_version: 10,
-								turn: { status: "waiting" },
-							},
-						},
-					] satisfies TypesGen.ChatStreamEvent[]),
-				},
-			],
-		},
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue({
@@ -1370,7 +1353,6 @@ export const WithMessageHistory: Story = {
 			status: "waiting",
 		});
 		spyOn(API.experimental, "editChatMessage").mockResolvedValue({
-			snapshotVersion: 1,
 			message: {
 				...MockChatMessage,
 				id: 5,
@@ -1412,6 +1394,11 @@ export const WithMessageHistory: Story = {
 			expect(
 				canvas.getByRole("textbox", { name: "Chat message" }),
 			).toBeEnabled();
+		});
+		// The stream reports that the edit's turn ended.
+		loadedChatStore(CHAT_ID)?.applyCheckpoint({
+			snapshot_version: 2,
+			turn: { status: "waiting" },
 		});
 
 		await editLastMessage();
@@ -1478,7 +1465,6 @@ export const StaleEditedModelUsesUsableLocalModel: Story = {
 			last_model_config_id: STALE_MODEL_CONFIG_ID,
 		});
 		spyOn(API.experimental, "editChatMessage").mockResolvedValue({
-			snapshotVersion: 1,
 			message: {
 				...MockChatMessage,
 				id: 5,
@@ -1546,7 +1532,7 @@ export const StaleHistoricalModelUsesLocalDefault: Story = {
 		const sendSpy = spyOn(
 			API.experimental,
 			"createChatMessage",
-		).mockResolvedValue({ snapshotVersion: 1, queued: false, messages: [] });
+		).mockResolvedValue({ queued: false, messages: [] });
 		expect(
 			canvas.getByRole("status", {
 				name: "The model used by this chat is not available. A usable model is selected for new messages.",
@@ -2919,10 +2905,9 @@ export const SlashCompactCommandSubmits: Story = {
 			{
 				id: CHAT_ID,
 				...baseChatFields,
-				snapshotVersion: 1,
 				title: "Compact command",
 				status: "running",
-			} as TypesGen.Chat & ChatActionVersion,
+			} as TypesGen.Chat,
 		);
 		const sendSpy = spyOn(API.experimental, "createChatMessage");
 
@@ -3087,7 +3072,6 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 			API.experimental,
 			"createChatMessage",
 		).mockResolvedValue({
-			snapshotVersion: 1,
 			queued: false,
 			message: {
 				id: 3,
@@ -3140,6 +3124,7 @@ const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
 		},
 	],
 	has_more: false,
+	turn: { status: "error" },
 };
 
 export const QueuedSendPromotesPreviousHead: Story = {
@@ -3153,30 +3138,10 @@ export const QueuedSendPromotesPreviousHead: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const promotedHead: TypesGen.ChatMessage = {
-			...MockChatMessage,
-			id: 42,
-			chat_id: CHAT_ID,
-			role: "user",
-			queued_message_id: 41,
-			created_at: "2024-01-01T00:01:00Z",
-			content: [{ type: "text", text: "Queued head prompt" }],
-		};
-		const followUp: TypesGen.ChatQueuedMessage = {
-			...MockChatQueuedMessage,
-			id: 43,
-			chat_id: CHAT_ID,
-			content: [{ type: "text", text: "Follow-up prompt" }],
-		};
 		const sendSpy = spyOn(
 			API.experimental,
 			"createChatMessage",
-		).mockResolvedValue({
-			snapshotVersion: 1,
-			queued: true,
-			messages: [promotedHead],
-			queued_message: followUp,
-		});
+		).mockResolvedValue({ queued: true });
 
 		expect(await canvas.findByText("Queued head prompt")).toBeVisible();
 
@@ -3255,17 +3220,7 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 			"createChatMessage",
 		).mockImplementation(async () => {
 			await sendGate;
-			return {
-				snapshotVersion: 1,
-				queued: false,
-				message: {
-					...MockChatMessage,
-					id: 41,
-					chat_id: CHAT_ID,
-					role: "user",
-					content: [{ type: "text", text: "Follow-up question." }],
-				},
-			};
+			return { queued: false };
 		});
 
 		// Rather than sampling native smooth-scroll progress (which depends on
@@ -3287,16 +3242,12 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 				expect(sendSpy).toHaveBeenCalledTimes(1);
 			});
 
-			// While the send POST is still pending, the scroller must not be told
-			// to move anywhere: the new user row it anchors to does not exist yet.
-			// The gated mock keeps the POST in-flight until this runs, so a single
-			// assertion is deterministic without polling animation frames.
-			expect(scrollToMock).not.toHaveBeenCalled();
-
-			// Resolve the send and let the turn settle. The scroller re-anchors
-			// to the new prompt with a single non-smooth scroll.
-			releaseSend?.();
-			await canvas.findByTestId("chat-message-message:41");
+			// The prompt shows at submit, while the gated POST is still pending,
+			// and the scroller re-anchors to it with a single non-smooth scroll.
+			const timeline = within(
+				await canvas.findByTestId("conversation-timeline"),
+			);
+			await timeline.findByText("Follow-up question.");
 			await waitFor(() => {
 				expect(scrollToMock).toHaveBeenCalledTimes(1);
 				// The anchor re-position is a non-smooth scroll; a smooth call here
@@ -3305,6 +3256,7 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 					behavior: "auto",
 				});
 			});
+			releaseSend?.();
 		} finally {
 			scrollToMock.mockRestore();
 		}
@@ -3356,19 +3308,7 @@ export const SendResponseAfterChatSwitch: Story = {
 			"createChatMessage",
 		).mockImplementation(async () => {
 			await sendGate;
-			return {
-				snapshotVersion: 1,
-				queued: false,
-				message: {
-					...MockChatMessage,
-					id: 51,
-					chat_id: CHAT_ID,
-					role: "user",
-					content: [
-						{ type: "text", text: "Stale response from previous chat" },
-					],
-				},
-			};
+			return { queued: false };
 		});
 
 		const editor = await canvas.findByTestId("chat-message-input");
@@ -3388,17 +3328,19 @@ export const SendResponseAfterChatSwitch: Story = {
 			timeout: 10_000,
 		});
 
-		// Release the gated send so the stale response resolves within the
-		// test and the discard path runs.
+		// The pending send belongs to the original chat, so the switched chat
+		// shows neither its prompt nor its turn, before or after the response.
+		expect(
+			timeline.queryByText("Send before switching"),
+		).not.toBeInTheDocument();
 		releaseSend?.();
 		await waitFor(() => {
-			expect(
-				timeline.queryByText("Stale response from previous chat"),
-			).not.toBeInTheDocument();
-			expect(
-				canvas.queryByTestId("live-activity-slot"),
-			).not.toBeInTheDocument();
+			expect(sendSpy).toHaveReturned();
 		});
+		expect(
+			timeline.queryByText("Send before switching"),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
 	},
 };
 
@@ -3427,7 +3369,7 @@ export const RemoveLastMCPServer: Story = {
 		const sendSpy = spyOn(
 			API.experimental,
 			"createChatMessage",
-		).mockResolvedValue({ snapshotVersion: 1, queued: false });
+		).mockResolvedValue({ queued: false });
 
 		await userEvent.click(
 			await canvas.findByRole("button", { name: "Remove MCP Server" }),
@@ -3491,7 +3433,6 @@ export const EditAppliesMCPServerSelection: Story = {
 			API.experimental,
 			"editChatMessage",
 		).mockResolvedValue({
-			snapshotVersion: 1,
 			message: { ...mcpEditableUserMessage, id: 6 },
 		});
 
@@ -3524,16 +3465,16 @@ export const EditAppliesMCPServerSelection: Story = {
 };
 
 /**
- * The send flow renders the durable user row once the server accepts the
- * prompt, before the assistant turn produces any output.
+ * The send flow shows the prompt and a waiting turn at submit, before the
+ * server accepts the prompt.
  */
-export const SendRendersDurableUserRowBeforeAssistantOutput: Story = {
+export const SendShowsPromptAtSubmit: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
 				id: CHAT_ID,
 				...baseChatFields,
-				title: "Durable send",
+				title: "Send at submit",
 				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
@@ -3554,25 +3495,15 @@ export const SendRendersDurableUserRowBeforeAssistantOutput: Story = {
 			"createChatMessage",
 		).mockImplementation(async () => {
 			await sendGate;
-			return {
-				snapshotVersion: 1,
-				queued: false,
-				message: {
-					...MockChatMessage,
-					id: 60,
-					chat_id: CHAT_ID,
-					role: "user",
-					content: [{ type: "text", text: "Durable prompt" }],
-				},
-			};
+			return { queued: false };
 		});
 
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
-		await userEvent.type(editor, "Durable prompt");
+		await userEvent.type(editor, "New prompt");
 		const sendButton = canvas.getByRole("button", { name: "Send" });
 		await waitFor(() => {
-			expect(editor).toHaveTextContent("Durable prompt");
+			expect(editor).toHaveTextContent("New prompt");
 			expect(sendButton).toBeEnabled();
 		});
 		await userEvent.click(sendButton);
@@ -3581,17 +3512,9 @@ export const SendRendersDurableUserRowBeforeAssistantOutput: Story = {
 		});
 
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
-		expect(
-			timeline.queryByTestId("chat-message-message:60"),
-		).not.toBeInTheDocument();
-
-		releaseSend?.();
-		expect(
-			await timeline.findByTestId("chat-message-message:60"),
-		).toHaveTextContent("Durable prompt");
-		// The turn is still waiting on its first chunk, so the durable row is in
-		// place before any assistant output exists.
+		expect(await timeline.findByText("New prompt")).toBeVisible();
 		expect(canvas.getByTestId("live-activity-slot")).toBeVisible();
+		releaseSend?.();
 	},
 };
 
