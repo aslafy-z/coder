@@ -2026,7 +2026,6 @@ func ChatWithDiffStatuses(
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
 		LastError:         lastError,
-		SnapshotVersion:   c.SnapshotVersion,
 	}
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String

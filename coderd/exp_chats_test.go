@@ -10758,7 +10758,6 @@ func TestStreamChat(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.DeletedMessageIDs)
-			require.NotZero(t, resp.SnapshotVersion, "the response must carry the version the edit committed")
 		}
 		requireResetFrom := func(events []codersdk.ChatStreamEvent, fromID int64) {
 			t.Helper()
@@ -11200,8 +11199,9 @@ func TestInterruptChat(t *testing.T) {
 // viewer that did not act. For each case below, a read-only shared viewer
 // has a stream open on the chat while the owner acts over REST. The
 // viewer's stream must deliver the action's state change and a checkpoint
-// whose snapshot_version is at least the one the action returned, and the
-// viewer's state at that checkpoint must equal the chat's.
+// whose snapshot_version is at least the one in the action's
+// Coder-Chat-Snapshot-Version header, and the viewer's state at that
+// checkpoint must equal the chat's.
 func TestChatStreamObserverSeesActions(t *testing.T) {
 	t.Parallel()
 
@@ -11276,17 +11276,21 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 		require.NoError(t, err)
 		return insertTestChatQueuedMessage(e.ctx, t, e.db, chatID, content, e.model.ID).ID
 	}
-	// queueAction runs a delete or promote request and returns the
-	// snapshot_version from its response.
-	queueAction := func(t *testing.T, e env, method, path string) int64 {
+	// do sends an action request for chatID, requires wantStatus, decodes
+	// the body into out when out is not nil, and returns the snapshot
+	// version from the response header.
+	do := func(t *testing.T, e env, method string, chatID uuid.UUID, path string, req any, wantStatus int, out any) int64 {
 		t.Helper()
-		res, err := e.client.Request(e.ctx, method, path, nil)
+		res, err := e.client.Request(e.ctx, method, fmt.Sprintf("/api/v2/chats/%s/%s", chatID, path), req)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		var resp codersdk.ChatActionResponse
-		require.NoError(t, codersdk.ReadBodyAsJSON(res, &resp))
-		return resp.SnapshotVersion
+		require.Equal(t, wantStatus, res.StatusCode)
+		if out != nil {
+			require.NoError(t, json.NewDecoder(res.Body).Decode(out))
+		}
+		w, err := strconv.ParseInt(res.Header.Get(codersdk.ChatSnapshotVersionHeader), 10, 64)
+		require.NoError(t, err, "the response must carry the snapshot version the action committed")
+		return w
 	}
 	hasEvent := func(applied []codersdk.ChatStreamEvent, eventType codersdk.ChatStreamEventType) bool {
 		return slices.ContainsFunc(applied, func(event codersdk.ChatStreamEvent) bool { return event.Type == eventType })
@@ -11303,10 +11307,10 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 				return scenario{
 					chatID: chat.ID,
 					act: func() int64 {
-						resp, err := e.client.CreateChatMessage(e.ctx, chat.ID, codersdk.CreateChatMessageRequest{Content: text("hello")})
-						require.NoError(t, err)
+						var resp codersdk.CreateChatMessageResponse
+						w := do(t, e, http.MethodPost, chat.ID, "messages", codersdk.CreateChatMessageRequest{Content: text("hello")}, http.StatusOK, &resp)
 						require.False(t, resp.Queued)
-						return resp.SnapshotVersion
+						return w
 					},
 					check: func(t *testing.T, tab *chatTab, before []int64, _ []codersdk.ChatStreamEvent) {
 						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
@@ -11324,15 +11328,15 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 				return scenario{
 					chatID: chat.ID,
 					act: func() int64 {
-						resp, err := e.client.CreateChatMessage(e.ctx, chat.ID, codersdk.CreateChatMessageRequest{
+						var resp codersdk.CreateChatMessageResponse
+						w := do(t, e, http.MethodPost, chat.ID, "messages", codersdk.CreateChatMessageRequest{
 							Content:      text("later"),
 							BusyBehavior: codersdk.ChatBusyBehaviorQueue,
-						})
-						require.NoError(t, err)
+						}, http.StatusOK, &resp)
 						require.True(t, resp.Queued)
 						require.NotNil(t, resp.QueuedMessage)
 						queuedID = resp.QueuedMessage.ID
-						return resp.SnapshotVersion
+						return w
 					},
 					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
 						require.Equal(t, []int64{queuedID}, tab.queue)
@@ -11350,10 +11354,10 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 				return scenario{
 					chatID: chat.ID,
 					act: func() int64 {
-						resp, err := e.client.EditChatMessage(e.ctx, chat.ID, prompt.ID, codersdk.EditChatMessageRequest{Content: text("edited question")})
-						require.NoError(t, err)
+						var resp codersdk.EditChatMessageResponse
+						w := do(t, e, http.MethodPatch, chat.ID, fmt.Sprintf("messages/%d", prompt.ID), codersdk.EditChatMessageRequest{Content: text("edited question")}, http.StatusOK, &resp)
 						editedID = resp.Message.ID
-						return resp.SnapshotVersion
+						return w
 					},
 					check: func(t *testing.T, tab *chatTab, _ []int64, applied []codersdk.ChatStreamEvent) {
 						require.True(t, hasEvent(applied, codersdk.ChatStreamEventTypeHistoryReset))
@@ -11372,7 +11376,7 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 				return scenario{
 					chatID: chat.ID,
 					act: func() int64 {
-						return queueAction(t, e, http.MethodDelete, fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, queuedID))
+						return do(t, e, http.MethodDelete, chat.ID, fmt.Sprintf("queue/%d", queuedID), nil, http.StatusNoContent, nil)
 					},
 					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
 						require.Empty(t, tab.queue)
@@ -11391,7 +11395,7 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 				return scenario{
 					chatID: chat.ID,
 					act: func() int64 {
-						return queueAction(t, e, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, second))
+						return do(t, e, http.MethodPost, chat.ID, fmt.Sprintf("queue/%d/promote", second), nil, http.StatusAccepted, nil)
 					},
 					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
 						require.Equal(t, []int64{second, first}, tab.queue, "the promoted message moves to the head")
@@ -11409,7 +11413,7 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 				return scenario{
 					chatID: chat.ID,
 					act: func() int64 {
-						return queueAction(t, e, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queuedID))
+						return do(t, e, http.MethodPost, chat.ID, fmt.Sprintf("queue/%d/promote", queuedID), nil, http.StatusAccepted, nil)
 					},
 					check: func(t *testing.T, tab *chatTab, before []int64, _ []codersdk.ChatStreamEvent) {
 						require.Empty(t, tab.queue)
@@ -11427,9 +11431,7 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 				return scenario{
 					chatID: chat.ID,
 					act: func() int64 {
-						interrupted, err := e.client.InterruptChat(e.ctx, chat.ID)
-						require.NoError(t, err)
-						return interrupted.SnapshotVersion
+						return do(t, e, http.MethodPost, chat.ID, "interrupt", nil, http.StatusOK, nil)
 					},
 					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
 						require.Equal(t, codersdk.ChatStatusInterrupting, tab.status)
@@ -11445,9 +11447,7 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 				return scenario{
 					chatID: chat.ID,
 					act: func() int64 {
-						compacted, err := e.client.CompactChat(e.ctx, chat.ID)
-						require.NoError(t, err)
-						return compacted.SnapshotVersion
+						return do(t, e, http.MethodPost, chat.ID, "compact", nil, http.StatusOK, nil)
 					},
 					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
 						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
@@ -11463,9 +11463,7 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 				return scenario{
 					chatID: chat.ID,
 					act: func() int64 {
-						cleared, err := e.client.ClearChat(e.ctx, chat.ID)
-						require.NoError(t, err)
-						return cleared.SnapshotVersion
+						return do(t, e, http.MethodPost, chat.ID, "clear", nil, http.StatusOK, nil)
 					},
 					check: func(t *testing.T, tab *chatTab, before []int64, applied []codersdk.ChatStreamEvent) {
 						require.True(t, hasEvent(applied, codersdk.ChatStreamEventTypeMessage), "the clear marker")
@@ -11482,15 +11480,31 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 				return scenario{
 					chatID: chat.ID,
 					act: func() int64 {
-						resp, err := e.client.SubmitToolResults(e.ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+						return do(t, e, http.MethodPost, chat.ID, "tool-results", codersdk.SubmitToolResultsRequest{
 							Results: []codersdk.ToolResult{{ToolCallID: "call_observed", Output: json.RawMessage(`"done"`)}},
-						})
-						require.NoError(t, err)
-						return resp.SnapshotVersion
+						}, http.StatusNoContent, nil)
 					},
 					check: func(t *testing.T, tab *chatTab, before []int64, _ []codersdk.ChatStreamEvent) {
 						require.Len(t, tab.ids, len(before)+1, "the tool result")
 						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
+					},
+				}
+			},
+		},
+		{
+			// A waiting chat with a queued message is an invalid state.
+			name: "ReconcileInvalid",
+			setup: func(t *testing.T, e env) scenario {
+				chat := newChat(t, e, database.ChatStatusWaiting)
+				queuedID := queue(t, e, chat.ID, "stranded")
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						return do(t, e, http.MethodPost, chat.ID, "reconcile-invalid", nil, http.StatusOK, nil)
+					},
+					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
+						require.Equal(t, []int64{queuedID}, tab.queue, "reconcile keeps the queue")
+						require.Equal(t, codersdk.ChatStatusError, tab.status)
 					},
 				}
 			},
@@ -13209,13 +13223,8 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 			nil,
 		)
 		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		var deleted codersdk.ChatActionResponse
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&deleted))
-		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, after.SnapshotVersion, deleted.SnapshotVersion, "the response must carry the version the delete committed")
+		res.Body.Close()
+		require.Equal(t, http.StatusNoContent, res.StatusCode)
 
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
@@ -13304,11 +13313,11 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 
-		var promoteResp codersdk.ChatActionResponse
-		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&promoteResp))
-		require.Greater(t, promoteResp.SnapshotVersion, chat.SnapshotVersion, "the response must carry the version the promote committed")
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
+		require.NotEmpty(t, resp.Message)
 
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
@@ -13515,7 +13524,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 	})
 
 	t.Run("ArchivedChat", func(t *testing.T) {
@@ -13636,11 +13645,11 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 
-		var promoteResp codersdk.ChatActionResponse
-		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&promoteResp))
-		require.Greater(t, promoteResp.SnapshotVersion, chat.SnapshotVersion, "the response must carry the version the promote committed")
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
+		require.NotEmpty(t, resp.Message)
 
 		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
@@ -13729,11 +13738,11 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 
-		var promoteResp codersdk.ChatActionResponse
-		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&promoteResp))
-		require.Greater(t, promoteResp.SnapshotVersion, chat.SnapshotVersion, "the response must carry the version the promote committed")
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
+		require.NotEmpty(t, resp.Message)
 
 		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
@@ -15234,7 +15243,6 @@ func sendChatMessage(ctx context.Context, t *testing.T, client *codersdk.Experim
 	})
 	require.NoError(t, err)
 	require.False(t, resp.Queued)
-	require.NotZero(t, resp.SnapshotVersion, "the response must carry the version the send committed")
 	waitForChatStatus(ctx, t, client, chatID, codersdk.ChatStatusWaiting)
 	if len(resp.Messages) > 0 {
 		return resp.Messages
@@ -18853,14 +18861,13 @@ func TestSubmitToolResults(t *testing.T) {
 
 		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
-		resp, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_abc", Output: json.RawMessage(`"result_a"`)},
 				{ToolCallID: "call_def", Output: json.RawMessage(`"result_b"`)},
 			},
 		})
 		require.NoError(t, err)
-		require.Greater(t, resp.SnapshotVersion, chat.SnapshotVersion, "the response must carry the version the submission committed")
 
 		// Verify status is no longer requires_action. The worker is
 		// disabled, so the transition comes from SubmitToolResults
@@ -18900,7 +18907,7 @@ func TestSubmitToolResults(t *testing.T) {
 			Title:             "wrong-status-test",
 		})
 
-		_, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_xyz", Output: json.RawMessage(`"nope"`)},
 			},
@@ -18922,7 +18929,7 @@ func TestSubmitToolResults(t *testing.T) {
 		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
 		// Submit only one of the two required results.
-		_, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_one", Output: json.RawMessage(`"partial"`)},
 			},
@@ -18944,7 +18951,7 @@ func TestSubmitToolResults(t *testing.T) {
 		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
 		// Submit a result with a wrong tool_call_id.
-		_, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_bogus", Output: json.RawMessage(`"wrong"`)},
 			},
@@ -18995,7 +19002,7 @@ func TestSubmitToolResults(t *testing.T) {
 
 		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
-		_, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_dup1", Output: json.RawMessage(`"result_a"`)},
 				{ToolCallID: "call_dup1", Output: json.RawMessage(`"result_b"`)},
@@ -19018,7 +19025,7 @@ func TestSubmitToolResults(t *testing.T) {
 
 		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
-		_, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{},
 		})
 		requireSDKError(t, err, http.StatusBadRequest)
@@ -19044,7 +19051,7 @@ func TestSubmitToolResults(t *testing.T) {
 		)
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 
-		_, err := otherClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err := otherClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_other", Output: json.RawMessage(`"nope"`)},
 			},
@@ -19068,7 +19075,7 @@ func TestSubmitToolResults(t *testing.T) {
 
 		chat := setupRequiresAction(ctx, t, db, member.ID, firstUser.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
-		_, err := memberClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err := memberClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_member", Output: json.RawMessage(`"result"`)},
 			},
@@ -19093,7 +19100,7 @@ func TestSubmitToolResults(t *testing.T) {
 		_, err := db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 
-		_, err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_archived", Output: json.RawMessage(`"should fail"`)},
 			},
@@ -19473,7 +19480,7 @@ func TestPostChats_DynamicToolValidation(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, chat.ID)
 
-		_, err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{{ToolCallID: "call_abc", Output: json.RawMessage(`"result"`)}},
 		})
 		sdkErr = requireSDKError(t, err, http.StatusForbidden)
@@ -20058,7 +20065,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		t.Parallel()
 
 		ctx, _, sharedClient, chat, _ := setup(t)
-		_, err := sharedClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err := sharedClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{{
 				ToolCallID: "call_read_only",
 				Output:     json.RawMessage(`"forbidden"`),
@@ -20249,7 +20256,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
 
-		_, err := adminClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		err := adminClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{{
 				ToolCallID: "call_forbidden",
 				Output:     json.RawMessage(`"forbidden"`),
