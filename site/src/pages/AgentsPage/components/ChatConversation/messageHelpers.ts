@@ -403,19 +403,3 @@ export const getMessageAttachments = (
 			),
 		)
 		.reverse();
-
-/**
- * The server's attachments from messages before the loaded ones, newest
- * first, keyed like loaded attachments.
- */
-export const getEarlierMessageAttachments = (
-	attachments: readonly TypesGen.ChatAttachment[],
-): MessageAttachment[] =>
-	attachments.flatMap((attachment) =>
-		toMessageAttachments(
-			attachment.message_id,
-			attachment.part_index,
-			attachment.role,
-			attachment.file,
-		),
-	);
