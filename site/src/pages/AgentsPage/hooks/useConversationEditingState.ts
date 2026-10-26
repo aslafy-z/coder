@@ -15,8 +15,8 @@ export type SendChatTurnOptions = SendChatMessageOptions & {
 };
 
 // Joins two serialized Lexical states, the blocks of before followed by
-// those of after. Returns undefined when either cannot be parsed; the editor
-// then seeds the plain text instead.
+// those of after. Returns undefined when either state is missing or
+// unparsable; the editor then seeds the plain text.
 const joinEditorStates = (
 	before: string | undefined,
 	after: string | undefined,
@@ -43,7 +43,7 @@ type PendingSend = {
 	message: string;
 	editorState: string | undefined;
 	fileBlocks: readonly ChatMessagePart[];
-	messageId: number | null;
+	editedMessageId: number | null;
 };
 
 // The composer content a failed send restores: the sent message, followed by
@@ -118,6 +118,11 @@ export function useConversationEditingState(deps: {
 		fileBlocks?: readonly ChatMessagePart[],
 		editorState?: string,
 	) => {
+		// The rollback and draft write of a pending send would overwrite the
+		// edit, so Edit does nothing until the send settles.
+		if (pendingSendRef.current) {
+			return;
+		}
 		if (editingMessageId === null) {
 			// Read the current serialized editor state from localStorage
 			// (kept up-to-date by handleContentChange) rather than from
@@ -163,7 +168,7 @@ export function useConversationEditingState(deps: {
 			message,
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
-			messageId: editingMessageId,
+			editedMessageId: editingMessageId,
 		};
 
 		pendingSendRef.current = snapshot;
@@ -184,14 +189,13 @@ export function useConversationEditingState(deps: {
 			serializedEditorStateRef.current = editorState;
 			setRemountKey((k) => k + 1);
 			inputValueRef.current = text;
-			setEditingMessageId(snapshot.messageId);
+			setEditingMessageId(snapshot.editedMessageId);
 			setEditingFileBlocks(snapshot.fileBlocks);
 		};
 	};
 
-	// Ends a successful send. The composer was cleared at submit, so any
-	// content in it was typed during the request. That content stays and
-	// becomes the saved draft.
+	// The composer was cleared at submit, so after a successful send it holds
+	// only what was typed during the request, which is the chat's draft now.
 	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
 		const draft = serializedEditorStateRef.current;
 		if (inputValueRef.current.trim() && draft) {
@@ -256,7 +260,7 @@ export function useConversationEditingState(deps: {
 		}
 		const pendingSend = pendingSendRef.current;
 		if (pendingSend) {
-			if (pendingSend.messageId !== null) {
+			if (pendingSend.editedMessageId !== null) {
 				return;
 			}
 			const draft = restoredDraft(pendingSend, content, serializedEditorState);
