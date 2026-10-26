@@ -391,7 +391,7 @@ describe("submitChatTurn", () => {
 			store.applyServerChatStatus("running");
 		});
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
-		expect(store.getSnapshot().pendingActions).toEqual([]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
 	});
 
 	it("restores the transcript when an edit fails", async () => {
@@ -446,7 +446,7 @@ describe("submitChatTurn", () => {
 			store.applyServerChatStatus("running");
 		});
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
-		expect(store.getSnapshot().pendingActions).toEqual([]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
 	});
 
 	it("shows a send once when the stream reports it before the response", async () => {
@@ -462,7 +462,7 @@ describe("submitChatTurn", () => {
 		await submitChatTurn(buildParams({ store, sendMessage }));
 
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
-		expect(store.getSnapshot().pendingActions).toEqual([]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
 	});
 
 	it("shows a send to a running chat in the queue until the stream reports it", async () => {
@@ -483,7 +483,7 @@ describe("submitChatTurn", () => {
 			store.applyServerChatStatus("running");
 		});
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([queued]);
-		expect(store.getSnapshot().pendingActions).toEqual([]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
 	});
 
 	it("places a send by the status the page shows", async () => {

@@ -784,7 +784,7 @@ const visible = (store: ChatStore) => {
 };
 
 // A user message as submitChatTurn builds it at the click.
-const eagerSend = (text: string): PendingAction => ({
+const pendingSend = (text: string): PendingAction => ({
 	kind: "send",
 	message: {
 		id: 0,
@@ -838,7 +838,7 @@ describe("pending actions", () => {
 
 	it("keeps a pending message through stream updates without user messages", () => {
 		const store = seededStore([makeMessage(1, "user", "first")], [], "waiting");
-		addPending(store, eagerSend("second"));
+		addPending(store, pendingSend("second"));
 
 		store.upsertDurableMessages([makeMessage(2, "assistant", "late")]);
 		store.applyServerChatStatus("waiting");
@@ -862,7 +862,7 @@ describe("pending actions", () => {
 			editedMessageID: 2,
 			message: makeMessage(2, "user", "new"),
 		});
-		addPending(store, eagerSend("queued"));
+		addPending(store, pendingSend("queued"));
 
 		const state = store.getSnapshot();
 		const shown = selectOrderedMessageIDs(state).map((id) => [
@@ -913,7 +913,7 @@ describe("pending actions", () => {
 		expect(store.getSnapshot()).toBe(before);
 	});
 
-	it("removes a failed action's overlay", async () => {
+	it("stops showing a failed action", async () => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first")],
 			[makeQueuedMessage(10, "q10")],
@@ -956,7 +956,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		messages: [makeMessage(1, "user", "first")],
 		queue: [],
 		status: "waiting",
-		action: eagerSend("second"),
+		action: pendingSend("second"),
 		stream: (store) => {
 			store.upsertDurableMessages([makeMessage(2, "user", "second")]);
 		},
@@ -967,7 +967,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		messages: [makeMessage(1, "user", "first")],
 		queue: [],
 		status: "running",
-		action: eagerSend("q10"),
+		action: pendingSend("q10"),
 		stream: (store) => store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
 		statusAfter: "running",
 	},
@@ -977,7 +977,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 			messages: [makeMessage(1, "user", "first")],
 			queue: [],
 			status,
-			action: eagerSend("q10"),
+			action: pendingSend("q10"),
 			stream: (store) => store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
 			statusAfter: status,
 		}),
@@ -987,7 +987,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		messages: [makeMessage(1, "user", "first")],
 		queue: [makeQueuedMessage(10, "q10")],
 		status: "error",
-		action: eagerSend("q11"),
+		action: pendingSend("q11"),
 		stream: (store) => {
 			store.upsertDurableMessages([
 				{ ...makeMessage(2, "user", "q10"), queued_message_id: 10 },
@@ -1059,7 +1059,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		messages: [makeMessage(1, "user", "first")],
 		queue: [],
 		status: "waiting",
-		action: eagerSend("mine"),
+		action: pendingSend("mine"),
 		stream: (store) => {
 			store.upsertDurableMessages([makeMessage(2, "user", "theirs")]);
 		},
@@ -1071,7 +1071,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		messages: [makeMessage(1, "user", "first")],
 		queue: [],
 		status: "waiting",
-		action: eagerSend("mine"),
+		action: pendingSend("mine"),
 		stream: (store) => {
 			store.resetHistoryFrom(1);
 			store.upsertDurableMessages([makeMessage(3, "user", "theirs")]);
@@ -1103,7 +1103,7 @@ describe("pending actions converge with the stream", () => {
 			});
 		}
 
-		expect(actor.getSnapshot().pendingActions).toEqual([]);
+		expect(actor.getSnapshot().pendingEntries).toEqual([]);
 		expect(visible(actor)).toEqual(visible(observer));
 		// The action showed the committed messages and queue, so nothing moves
 		// when it ends. The status only ever comes from the stream.
@@ -1128,7 +1128,7 @@ const partEndScenarios: {
 	{
 		name: "an added message at a user message",
 		status: "waiting",
-		action: eagerSend("second"),
+		action: pendingSend("second"),
 		others: (store) => {
 			store.upsertDurableMessages([makeMessage(2, "assistant", "late")]);
 			store.resetHistoryFrom(99);
@@ -1141,7 +1141,7 @@ const partEndScenarios: {
 	{
 		name: "an added message at a queue update",
 		status: "running",
-		action: eagerSend("q10"),
+		action: pendingSend("q10"),
 		others: (store) => {
 			store.upsertDurableMessages([makeMessage(2, "assistant", "late")]);
 			store.resetHistoryFrom(99);
@@ -1195,10 +1195,10 @@ describe("pending part ends", () => {
 		const store = storeWithAction(scenario);
 
 		scenario.others(store);
-		expect(store.getSnapshot().pendingActions).toHaveLength(1);
+		expect(store.getSnapshot().pendingEntries).toHaveLength(1);
 
 		scenario.end(store, 2);
-		expect(store.getSnapshot().pendingActions).toEqual([]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
 	});
 
 	// A reconnect resends the events at the synced version, which the click
@@ -1209,7 +1209,7 @@ describe("pending part ends", () => {
 			const store = storeWithAction(scenario);
 
 			scenario.end(store, 1);
-			expect(store.getSnapshot().pendingActions).toHaveLength(1);
+			expect(store.getSnapshot().pendingEntries).toHaveLength(1);
 		},
 	);
 
@@ -1233,7 +1233,7 @@ describe("pending part ends", () => {
 		expect(visible(store).queue).toEqual(["q10"]);
 
 		store.setQueuedMessages([makeQueuedMessage(10, "q10")], 3);
-		expect(store.getSnapshot().pendingActions).toEqual([]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
 	});
 });
 
