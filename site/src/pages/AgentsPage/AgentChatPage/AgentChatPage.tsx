@@ -358,9 +358,9 @@ const AgentChatPage: React.FC = () => {
 		store,
 		loadState,
 		retryLoad,
-		loadOlderMessages,
-		isLoadingOlderMessages,
-		hasLoadOlderMessagesError,
+		fetchMoreMessages,
+		isFetchingMoreMessages,
+		hasFetchMoreError,
 	} = useChatStore({
 		chatID: agentId,
 		setChatErrorReason,
@@ -783,9 +783,9 @@ const AgentChatPage: React.FC = () => {
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
 					hasMoreMessages={hasMoreMessages}
-					isFetchingMoreMessages={isLoadingOlderMessages}
-					hasFetchMoreError={hasLoadOlderMessagesError}
-					onFetchMoreMessages={loadOlderMessages}
+					isFetchingMoreMessages={isFetchingMoreMessages}
+					hasFetchMoreError={hasFetchMoreError}
+					onFetchMoreMessages={fetchMoreMessages}
 					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
