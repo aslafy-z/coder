@@ -2,6 +2,7 @@ import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
 import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { useTheme } from "#/theme/context";
 import type { SourceLink } from "../../ChatConversation/types";
 import { ACPTool } from "./ACPTool";
@@ -22,6 +23,7 @@ import { type FindToolsMatch, FindToolsTool } from "./FindToolsTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListSubagentModelsTool } from "./ListSubagentModelsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
+import { parseOpenPreviewTarget, usePreviewPanel } from "./PreviewPanelContext";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
@@ -1166,6 +1168,54 @@ const WebSearchRenderer: React.FC<ToolRendererProps> = (props) =>
 		<GenericToolRenderer {...props} />
 	);
 
+const OpenPreviewRenderer: React.FC<ToolRendererProps> = (props) => {
+	const { onOpenPreview } = usePreviewPanel();
+	// An MCP tool can share the built-in name but not its result contract.
+	if (props.mcpServerConfigId) {
+		return <GenericToolRenderer {...props} />;
+	}
+
+	const { status, args, result, isError } = props;
+	const title = asString(parseArgs(args)?.title).trim() || "preview";
+	const target = parseOpenPreviewTarget(props);
+	const failed = isError || (status !== "running" && !target);
+	const errorMessage =
+		(typeof result === "string" ? result : asString(asRecord(result)?.error)) ||
+		"Failed to open preview";
+
+	let label = `Opened ${title}`;
+	if (status === "running") {
+		label = `Opening ${title}…`;
+	} else if (failed) {
+		label = `Failed to open ${title}`;
+	}
+
+	return (
+		<ToolCall.Root
+			className="w-full"
+			status={status}
+			isError={failed}
+			errorMessage={errorMessage}
+			hasContent={false}
+		>
+			<ToolCall.HeaderLayout>
+				<ToolCall.Header iconName="open_preview" label={label} />
+				{target && onOpenPreview && status === "completed" && (
+					<ToolCall.HeaderActions>
+						<Button
+							size="xs"
+							variant="outline"
+							onClick={() => onOpenPreview(target)}
+						>
+							Open preview
+						</Button>
+					</ToolCall.HeaderActions>
+				)}
+			</ToolCall.HeaderLayout>
+		</ToolCall.Root>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
@@ -1203,6 +1253,8 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
 	web_search: WebSearchRenderer,
+
+	open_preview: OpenPreviewRenderer,
 };
 
 // Exported so tests can assert cross-cutting affordances across every

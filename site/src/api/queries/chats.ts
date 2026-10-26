@@ -2569,6 +2569,15 @@ export const chatDebugRun = (chatId: string, runId: string) =>
 		refetchIntervalInBackground: false,
 	});
 
+export const chatPreviewsKey = (chatId: string) =>
+	["chatPreviews", chatId] as const;
+
+export const chatPreviews = (chatId: string) =>
+	queryOptions({
+		queryKey: chatPreviewsKey(chatId),
+		queryFn: ({ signal }) => API.experimental.getChatPreviews(chatId, signal),
+	});
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),
