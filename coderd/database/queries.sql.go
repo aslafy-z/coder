@@ -12593,50 +12593,6 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 	return items, nil
 }
 
-const insertChatQueuedMessage = `-- name: InsertChatQueuedMessage :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
-SELECT
-    $1::uuid,
-    $2::jsonb,
-    $3::uuid,
-    $4::chat_reasoning_effort,
-    chats.owner_id
-FROM chats
-WHERE chats.id = $1::uuid
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
-`
-
-type InsertChatQueuedMessageParams struct {
-	ChatID          uuid.UUID               `db:"chat_id" json:"chat_id"`
-	Content         json.RawMessage         `db:"content" json:"content"`
-	ModelConfigID   uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
-	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
-}
-
-// Legacy queue insertion path. When no caller-supplied creator exists,
-// preserve the created_by invariant by attributing the queued row to the
-// chat owner.
-func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (ChatQueuedMessage, error) {
-	row := q.db.QueryRowContext(ctx, insertChatQueuedMessage,
-		arg.ChatID,
-		arg.Content,
-		arg.ModelConfigID,
-		arg.ReasoningEffort,
-	)
-	var i ChatQueuedMessage
-	err := row.Scan(
-		&i.ID,
-		&i.ChatID,
-		&i.Content,
-		&i.CreatedAt,
-		&i.ModelConfigID,
-		&i.Position,
-		&i.CreatedBy,
-		&i.ReasoningEffort,
-	)
-	return i, err
-}
-
 const insertChatQueuedMessageWithCreator = `-- name: InsertChatQueuedMessageWithCreator :one
 INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
 VALUES (
@@ -13207,20 +13163,6 @@ type SetChatContextSnapshotParams struct {
 // background state and must not reorder chat lists.
 func (q *sqlQuerier) SetChatContextSnapshot(ctx context.Context, arg SetChatContextSnapshotParams) error {
 	_, err := q.db.ExecContext(ctx, setChatContextSnapshot, arg.AggregateHash, arg.ContextError, arg.ID)
-	return err
-}
-
-const softDeleteChatMessageByID = `-- name: SoftDeleteChatMessageByID :exec
-UPDATE
-    chat_messages
-SET
-    deleted = true
-WHERE
-    id = $1::bigint
-`
-
-func (q *sqlQuerier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, softDeleteChatMessageByID, id)
 	return err
 }
 
