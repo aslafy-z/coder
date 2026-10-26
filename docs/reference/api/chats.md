@@ -4081,7 +4081,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 Each WebSocket message is a JSON array of events.
 
-The server increases a chat's `snapshot_version` by 1 each time it commits a change to the chat.
+The server increases a chat's `snapshot_version` by 1 each time it commits a change to the chat's messages, queue, or status.
 Each change has the `snapshot_version` of the commit that made it.
 Only the newest messages page, which `GET /api/v2/chats/{chat}/messages` returns when you set neither `before_id` nor `after_id`, includes the chat's `snapshot_version`.
 The server reads `snapshot_version` before the messages and the queue, so a change that it commits between those reads is in the page, and the stream sends that change again.
