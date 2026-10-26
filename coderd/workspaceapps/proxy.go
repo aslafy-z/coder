@@ -50,6 +50,11 @@ const (
 	// Deprecated: we no longer use this, but we still redirect from it to the
 	// main login page.
 	appLogoutHostname = "coder-logout"
+	// previewSandbox is the CSP sandbox for preview pages, which serve
+	// agent-authored content. Previews keep their origin so their own
+	// requests carry the app cookie, but they cannot navigate the top-level
+	// page or open popups. The dashboard's preview frame uses the same flags.
+	previewSandbox = "allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"
 )
 
 // nonCanonicalHeaders is a map from "canonical" headers to the actual header we
@@ -486,6 +491,13 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				return
 			}
 
+			if s.isFromOtherPreview(r, host) {
+				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+					Message: "Preview pages cannot send requests to other apps.",
+				})
+				return
+			}
+
 			if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
 				return
 			}
@@ -522,6 +534,31 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+// isFromOtherPreview reports whether r was sent by a preview page on a
+// different host. Previews serve agent-authored content, so they must not
+// reach the owner's other apps with the owner's app cookie. Browsers send
+// Origin on every cross-origin request that can read a response or change
+// state, so rejecting these covers CORS reads and form posts alike, whatever
+// the template's CORS behavior.
+func (s *Server) isFromOtherPreview(r *http.Request, host string) bool {
+	origin, err := url.Parse(r.Header.Get(httpmw.OriginHeader))
+	if err != nil || origin.Host == "" || appurl.HostnamesMatch(origin.Host, host) {
+		return false
+	}
+
+	subdomain, ok := appurl.ExecuteHostnamePattern(s.HostnameRegex, origin.Host)
+	if !ok {
+		return false
+	}
+	originApp, err := appurl.ParseSubdomainAppURL(subdomain)
+	if err != nil {
+		return false
+	}
+
+	_, isPreview := appurl.ParsePreviewSlug(originApp.AppSlugOrPort)
+	return isPreview
 }
 
 // parseHostname will return if a given request is attempting to access a
@@ -615,6 +652,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 
 	// Verify that the port is allowed. See the docs above
 	// `codersdk.MinimumListeningPort` for more details.
+	preview, isPreview := appurl.ParsePreviewSlug(app.AppSlugOrPort)
 	port := appURL.Port()
 	if port != "" {
 		portInt, err := strconv.Atoi(port)
@@ -626,7 +664,10 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 			return
 		}
 
-		if portInt < workspacesdk.AgentMinimumListeningPort {
+		// File previews are the only apps allowed to reach a reserved port,
+		// and only the agent's preview port.
+		isPreviewPort := preview.ID != "" && portInt == workspacesdk.AgentPreviewPort
+		if portInt < workspacesdk.AgentMinimumListeningPort && !isPreviewPort {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Application port %d is not permitted. Coder reserves ports less than %d for internal use.",
 					portInt, workspacesdk.AgentMinimumListeningPort,
@@ -677,6 +718,12 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
 
 	proxy.ModifyResponse = func(r *http.Response) error {
+		// Sandbox preview pages wherever they are opened. Add rather than set
+		// so a policy from the preview server still applies.
+		if isPreview {
+			r.Header.Add("Content-Security-Policy", "sandbox "+previewSandbox)
+		}
+
 		// If passthru behavior is set, disable our CORS header stripping.
 		if cors.HasBehavior(r.Request.Context(), codersdk.CORSBehaviorPassthru) {
 			return nil
