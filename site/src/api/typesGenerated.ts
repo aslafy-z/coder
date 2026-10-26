@@ -3557,6 +3557,24 @@ export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 
 // From codersdk/chats.go
 /**
+ * ChatPreview is an embedded preview that open_preview opened in a chat.
+ * Exactly one of Port or PreviewID identifies it on the named agent. Title
+ * and Path come from the newest result for that endpoint.
+ */
+export interface ChatPreview {
+	readonly title: string;
+	readonly agent_name: string;
+	readonly port?: number;
+	readonly preview_id?: string;
+	/**
+	 * Path is the published workspace file or directory. It is empty for a
+	 * preview of an existing server.
+	 */
+	readonly path?: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatProject groups related chats in an organization.
  */
 export interface ChatProject {
