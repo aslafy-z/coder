@@ -1013,6 +1013,7 @@ The generation goroutine supports:
   - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links
 - workspace binding
+  <!-- TODO: document root-only open_preview tool results (registered only when a wildcard app hostname is configured) (required title, path source), daemon-lifetime file publication on the agent's tailnet-only preview listener (port 5) routed through `preview--<id>` and `preview--<port>` workspace app hostnames that ignore port shares, sandbox responses and reject requests from other previews, the chat-scoped preview catalog endpoint under /chats/{chat}/previews, and frontend preview activation. -->
 - plan mode
 - respecting model configuration
 - provider-specific tools like web search and computer use
