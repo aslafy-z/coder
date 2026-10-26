@@ -581,6 +581,18 @@ function useMessageScrollerController({
     scrollToEnd,
   ])
 
+  // LOCAL CHANGE: placing the turn again first sizes the spacer for a reply
+  // whose resize has not run yet.
+  const releaseAnchorHold = React.useCallback(() => {
+    if (
+      autoScrollRef.current &&
+      reanchorToAnchoredMessage() &&
+      spacerHeightRef.current > 0
+    ) {
+      scrollToEnd({ behavior: "auto" })
+    }
+  }, [reanchorToAnchoredMessage, scrollToEnd])
+
   const observeVisibility = React.useCallback(() => {
     const viewport = viewportRef.current
 
@@ -839,6 +851,7 @@ function useMessageScrollerController({
       handleResize,
       observeVisibility,
       preserveScrollOnPrependRef,
+      releaseAnchorHold, // LOCAL CHANGE
       resetBrowserScrollAnchor, // LOCAL CHANGE
       scrollToEnd,
       scrollToMessage,
@@ -861,6 +874,7 @@ function useMessageScrollerController({
       handleContentChange,
       handleResize,
       observeVisibility,
+      releaseAnchorHold, // LOCAL CHANGE
       resetBrowserScrollAnchor, // LOCAL CHANGE
       scrollToEnd,
       scrollToMessage,
