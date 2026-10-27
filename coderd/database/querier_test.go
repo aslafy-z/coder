@@ -10798,10 +10798,11 @@ func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 
 	for _, c := range cases {
 		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          workspaceBuild.ID,
-			Deadline:    c.deadline,
-			MaxDeadline: c.maxDeadline,
-			UpdatedAt:   time.Now(),
+			DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+			ID:             workspaceBuild.ID,
+			Deadline:       c.deadline,
+			MaxDeadline:    c.maxDeadline,
+			UpdatedAt:      time.Now(),
 		})
 		if c.expectOK {
 			require.NoError(t, err)

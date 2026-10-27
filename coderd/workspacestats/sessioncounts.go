@@ -1,6 +1,10 @@
 package workspacestats
 
 import (
+	"cmp"
+	"maps"
+	"slices"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -42,6 +46,28 @@ func normalizedSessionCounts(st *agentproto.Stats) map[string]int64 {
 // HasSessionCounts reports whether the stats contain any active session.
 func HasSessionCounts(st *agentproto.Stats) bool {
 	return len(normalizedSessionCounts(st)) > 0
+}
+
+// activitySources returns active apps, busiest first, or
+// ActivitySourceConnection if there are none.
+func activitySources(st *agentproto.Stats) []ActivitySource {
+	counts := normalizedSessionCounts(st)
+	codersdk.FoldUnregisteredSessionApps(counts)
+	if len(counts) == 0 {
+		return []ActivitySource{ActivitySourceConnection}
+	}
+	names := slices.SortedFunc(maps.Keys(counts), func(a, b string) int {
+		return cmp.Or(
+			cmp.Compare(counts[b], counts[a]),
+			cmp.Compare(a, b),
+		)
+	})
+	sources := make([]ActivitySource, 0, len(names))
+	for _, name := range names {
+		displayName, _, _ := codersdk.SessionAppPresentation(name)
+		sources = append(sources, ActivitySource(displayName))
+	}
+	return sources
 }
 
 // ClearSessionCounts zeroes every session count on the given stats.

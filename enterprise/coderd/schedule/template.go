@@ -441,10 +441,11 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 
 	// Update the workspace build deadline.
 	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-		ID:          build.ID,
-		UpdatedAt:   now,
-		Deadline:    autostop.Deadline,
-		MaxDeadline: autostop.MaxDeadline,
+		ID:             build.ID,
+		UpdatedAt:      now,
+		Deadline:       autostop.Deadline,
+		MaxDeadline:    autostop.MaxDeadline,
+		DeadlineReason: database.WorkspaceBuildDeadlineReasonTemplateSchedule,
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace build %q: %w", build.ID, err)

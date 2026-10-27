@@ -59,10 +59,13 @@ Coder specifically tracks these session types:
   Using the web terminal (including reconnecting to the web terminal)
 - **SSH sessions**:
   Connecting via `coder ssh` or SSH config integration
-- **AI agent task status**:
-  When a coding agent reports "working" status, the workspace deadline is extended
+- **App status reports**:
+  When a workspace app, such as a coding agent, reports that it is working, or that it stopped working, the workspace deadline is extended
+- **Coder Agents chats**:
+  When a chat uses the workspace, for example to run a tool, or uploads a file to it
 
-Activity is only detected when there is at least one active session.
+Coder also counts any network traffic to the workspace as activity, even without one of the sessions above.
+For example, a port forward or a workspace app in the browser keeps the workspace active while it sends traffic.
 An open session will keep your workspace marked as active and prevent automatic shutdown.
 
 The following actions do **not** count as workspace activity:
@@ -70,10 +73,32 @@ The following actions do **not** count as workspace activity:
 - Viewing workspace details in the dashboard
 - Viewing or editing workspace settings
 - Viewing build logs or audit logs
-- Accessing ports through direct URLs without an active session
-- Background agent statistics reporting (note: AI agent _task status_ reporting is different and does count as activity, see above)
+- Background agent statistics reporting (note: app _status_ reports are different and do count as activity, see above)
 
 To avoid unexpected cloud costs, close your connections, this includes IDE windows, SSH sessions, and others, when you finish using your workspace.
+
+### See why the deadline changed
+
+Coder records why the autostop deadline last changed and when.
+
+To view it:
+
+1. Open the workspace.
+1. If the header shows only the schedule icon, select the icon.
+   The header hides the **Stop in** time while the workspace is in use.
+1. Hover over or focus the **Stop in** time.
+
+The tooltip explains the last change:
+
+| Change                                      | Example message                                                                |
+|---------------------------------------------|--------------------------------------------------------------------------------|
+| Activity extended the deadline              | Activity from Cursor and SSH extended this deadline 2&nbsp;minutes ago.        |
+| A user changed the deadline                 | A user changed this deadline 5&nbsp;minutes ago.                               |
+| A user turned off autostop                  | A user turned off autostop 5&nbsp;minutes ago.                                 |
+| A template administrator changed a schedule | A schedule change on the Docker template set this deadline 5&nbsp;minutes ago. |
+
+Network traffic without a session appears as "Open connection".
+The tooltip shows no extra message while the deadline is still the one set when the workspace started.
 
 ## Autostop requirement
 

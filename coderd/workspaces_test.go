@@ -3509,10 +3509,11 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		initialDeadline := dbJob.CompletedAt.Time.Add(deadline)
 		expectedMaxDeadline := dbJob.CompletedAt.Time.Add(maxDeadline)
 		err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          build.ID,
-			Deadline:    initialDeadline,
-			MaxDeadline: expectedMaxDeadline,
-			UpdatedAt:   dbtime.Now(),
+			DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+			ID:             build.ID,
+			Deadline:       initialDeadline,
+			MaxDeadline:    expectedMaxDeadline,
+			UpdatedAt:      dbtime.Now(),
 		})
 		require.NoError(t, err)
 
@@ -3529,6 +3530,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		require.WithinDuration(t, build.Deadline.Time, expectedMaxDeadline, time.Second)
 		require.True(t, build.MaxDeadline.Valid)
 		require.WithinDuration(t, build.MaxDeadline.Time, expectedMaxDeadline, time.Second)
+		require.NotNil(t, build.DeadlineChange)
+		require.Equal(t, codersdk.WorkspaceBuildDeadlineReasonAutostopDisabled, build.DeadlineChange.Reason)
 	})
 
 	t.Run("CustomAutostopDisabledByTemplate", func(t *testing.T) {
@@ -3621,6 +3624,8 @@ func TestWorkspaceExtend(t *testing.T) {
 	workspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "fetch provisioned workspace")
 	oldDeadline := workspace.LatestBuild.Deadline.Time
+	require.NotNil(t, workspace.LatestBuild.DeadlineChange)
+	require.Equal(t, codersdk.WorkspaceBuildDeadlineReasonBuild, workspace.LatestBuild.DeadlineChange.Reason)
 
 	// Updating the deadline should succeed
 	req := codersdk.PutExtendWorkspaceRequest{
@@ -3633,6 +3638,8 @@ func TestWorkspaceExtend(t *testing.T) {
 	updated, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "failed to fetch updated workspace")
 	require.WithinDuration(t, newDeadline, updated.LatestBuild.Deadline.Time, time.Minute)
+	require.NotNil(t, updated.LatestBuild.DeadlineChange)
+	require.Equal(t, codersdk.WorkspaceBuildDeadlineReasonUserChanged, updated.LatestBuild.DeadlineChange.Reason)
 
 	// Zero time should fail
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{

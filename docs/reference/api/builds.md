@@ -36,6 +36,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "activity": {
+      "sources": [
+        "string"
+      ]
+    },
+    "changed_at": "2019-08-24T14:15:22Z",
+    "reason": "build"
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -299,6 +308,15 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "activity": {
+      "sources": [
+        "string"
+      ]
+    },
+    "changed_at": "2019-08-24T14:15:22Z",
+    "reason": "build"
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1148,6 +1166,15 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "activity": {
+      "sources": [
+        "string"
+      ]
+    },
+    "changed_at": "2019-08-24T14:15:22Z",
+    "reason": "build"
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1522,6 +1549,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "activity": {
+        "sources": [
+          "string"
+        ]
+      },
+      "changed_at": "2019-08-24T14:15:22Z",
+      "reason": "build"
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1766,6 +1802,11 @@ Status Code **200**
 | `» created_at`                        | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
 | `» daily_cost`                        | integer                                                                                                            | false    |              |                                                                                                                                                                                                                                                                        |
 | `» deadline`                          | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
+| `» deadline_change`                   | [codersdk.WorkspaceBuildDeadlineChange](schemas.md#codersdkworkspacebuilddeadlinechange)                           | false    |              | Deadline change explains the last change to Deadline, or is nil if it is unknown.                                                                                                                                                                                      |
+| `»» activity`                         | [codersdk.WorkspaceBuildDeadlineActivity](schemas.md#codersdkworkspacebuilddeadlineactivity)                       | false    |              | Activity is set when Reason is activity.                                                                                                                                                                                                                               |
+| `»»» sources`                         | array                                                                                                              | false    |              | Sources are display names, busiest first.                                                                                                                                                                                                                              |
+| `»» changed_at`                       | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
+| `»» reason`                           | [codersdk.WorkspaceBuildDeadlineReason](schemas.md#codersdkworkspacebuilddeadlinereason)                           | false    |              |                                                                                                                                                                                                                                                                        |
 | `» has_external_agent`                | boolean                                                                                                            | false    |              |                                                                                                                                                                                                                                                                        |
 | `» id`                                | string(uuid)                                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `» initiator_id`                      | string(uuid)                                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1943,11 +1984,11 @@ Status Code **200**
 
 | Property                     | Value(s)                                                                                                                                                                                                                                              |
 |------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `reason`                     | `activity`, `autostart`, `autostop`, `autostop_disabled`, `build`, `initiator`, `template_schedule`, `user_changed`                                                                                                                                   |
 | `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                                                                   |
 | `workspace_build_transition` | `delete`, `start`, `stop`                                                                                                                                                                                                                             |
 | `status`                     | `canceled`, `canceling`, `connected`, `connecting`, `deleted`, `deleting`, `disconnected`, `exit_failure`, `failed`, `ok`, `pending`, `pipes_left_open`, `running`, `skipped`, `starting`, `stopped`, `stopping`, `succeeded`, `timed_out`, `timeout` |
 | `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                                                                                              |
-| `reason`                     | `autostart`, `autostop`, `initiator`                                                                                                                                                                                                                  |
 | `health`                     | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                                                                                    |
 | `open_in`                    | `slim-window`, `tab`                                                                                                                                                                                                                                  |
 | `sharing_level`              | `authenticated`, `organization`, `owner`, `public`                                                                                                                                                                                                    |
@@ -2034,6 +2075,15 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "activity": {
+      "sources": [
+        "string"
+      ]
+    },
+    "changed_at": "2019-08-24T14:15:22Z",
+    "reason": "build"
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",

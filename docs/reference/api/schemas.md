@@ -18897,6 +18897,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "activity": {
+        "sources": [
+          "string"
+        ]
+      },
+      "changed_at": "2019-08-24T14:15:22Z",
+      "reason": "build"
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -20281,6 +20290,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "activity": {
+      "sources": [
+        "string"
+      ]
+    },
+    "changed_at": "2019-08-24T14:15:22Z",
+    "reason": "build"
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -20509,32 +20527,33 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                         | Type                                                              | Required | Restrictions | Description                                                         |
-|------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `build_number`               | integer                                                           | false    |              |                                                                     |
-| `created_at`                 | string                                                            | false    |              |                                                                     |
-| `daily_cost`                 | integer                                                           | false    |              |                                                                     |
-| `deadline`                   | string                                                            | false    |              |                                                                     |
-| `has_external_agent`         | boolean                                                           | false    |              |                                                                     |
-| `id`                         | string                                                            | false    |              |                                                                     |
-| `initiator_id`               | string                                                            | false    |              |                                                                     |
-| `initiator_name`             | string                                                            | false    |              |                                                                     |
-| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                     |
-| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                     |
-| `max_deadline`               | string                                                            | false    |              |                                                                     |
-| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                     |
-| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                     |
-| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                     |
-| `template_version_id`        | string                                                            | false    |              |                                                                     |
-| `template_version_name`      | string                                                            | false    |              |                                                                     |
-| `template_version_preset_id` | string                                                            | false    |              |                                                                     |
-| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                     |
-| `updated_at`                 | string                                                            | false    |              |                                                                     |
-| `workspace_id`               | string                                                            | false    |              |                                                                     |
-| `workspace_name`             | string                                                            | false    |              |                                                                     |
-| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
-| `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
-| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
+| Name                         | Type                                                                           | Required | Restrictions | Description                                                                       |
+|------------------------------|--------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------|
+| `build_number`               | integer                                                                        | false    |              |                                                                                   |
+| `created_at`                 | string                                                                         | false    |              |                                                                                   |
+| `daily_cost`                 | integer                                                                        | false    |              |                                                                                   |
+| `deadline`                   | string                                                                         | false    |              |                                                                                   |
+| `deadline_change`            | [codersdk.WorkspaceBuildDeadlineChange](#codersdkworkspacebuilddeadlinechange) | false    |              | Deadline change explains the last change to Deadline, or is nil if it is unknown. |
+| `has_external_agent`         | boolean                                                                        | false    |              |                                                                                   |
+| `id`                         | string                                                                         | false    |              |                                                                                   |
+| `initiator_id`               | string                                                                         | false    |              |                                                                                   |
+| `initiator_name`             | string                                                                         | false    |              |                                                                                   |
+| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                             | false    |              |                                                                                   |
+| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)                   | false    |              |                                                                                   |
+| `max_deadline`               | string                                                                         | false    |              |                                                                                   |
+| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                                   | false    |              |                                                                                   |
+| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource)              | false    |              |                                                                                   |
+| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                           | false    |              |                                                                                   |
+| `template_version_id`        | string                                                                         | false    |              |                                                                                   |
+| `template_version_name`      | string                                                                         | false    |              |                                                                                   |
+| `template_version_preset_id` | string                                                                         | false    |              |                                                                                   |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                   | false    |              |                                                                                   |
+| `updated_at`                 | string                                                                         | false    |              |                                                                                   |
+| `workspace_id`               | string                                                                         | false    |              |                                                                                   |
+| `workspace_name`             | string                                                                         | false    |              |                                                                                   |
+| `workspace_owner_avatar_url` | string                                                                         | false    |              |                                                                                   |
+| `workspace_owner_id`         | string                                                                         | false    |              |                                                                                   |
+| `workspace_owner_name`       | string                                                                         | false    |              | Workspace owner name is the username of the owner of the workspace.               |
 
 #### Enumerated Values
 
@@ -20543,6 +20562,64 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `reason`     | `autostart`, `autostop`, `initiator`                                                                              |
 | `status`     | `canceled`, `canceling`, `deleted`, `deleting`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping` |
 | `transition` | `delete`, `start`, `stop`                                                                                         |
+
+## codersdk.WorkspaceBuildDeadlineActivity
+
+```json
+{
+  "sources": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type            | Required | Restrictions | Description                               |
+|-----------|-----------------|----------|--------------|-------------------------------------------|
+| `sources` | array of string | false    |              | Sources are display names, busiest first. |
+
+## codersdk.WorkspaceBuildDeadlineChange
+
+```json
+{
+  "activity": {
+    "sources": [
+      "string"
+    ]
+  },
+  "changed_at": "2019-08-24T14:15:22Z",
+  "reason": "build"
+}
+```
+
+### Properties
+
+| Name         | Type                                                                               | Required | Restrictions | Description                              |
+|--------------|------------------------------------------------------------------------------------|----------|--------------|------------------------------------------|
+| `activity`   | [codersdk.WorkspaceBuildDeadlineActivity](#codersdkworkspacebuilddeadlineactivity) | false    |              | Activity is set when Reason is activity. |
+| `changed_at` | string                                                                             | false    |              |                                          |
+| `reason`     | [codersdk.WorkspaceBuildDeadlineReason](#codersdkworkspacebuilddeadlinereason)     | false    |              |                                          |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                                      |
+|----------|-------------------------------------------------------------------------------|
+| `reason` | `activity`, `autostop_disabled`, `build`, `template_schedule`, `user_changed` |
+
+## codersdk.WorkspaceBuildDeadlineReason
+
+```json
+"build"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                      |
+|-------------------------------------------------------------------------------|
+| `activity`, `autostop_disabled`, `build`, `template_schedule`, `user_changed` |
 
 ## codersdk.WorkspaceBuildDebugEventRequest
 
@@ -21232,6 +21309,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
+        "deadline_change": {
+          "activity": {
+            "sources": [
+              "string"
+            ]
+          },
+          "changed_at": "2019-08-24T14:15:22Z",
+          "reason": "build"
+        },
         "has_external_agent": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",

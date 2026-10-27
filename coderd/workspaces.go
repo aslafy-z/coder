@@ -1498,9 +1498,10 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 					//
 					// Refer to the comments on schedule.CalculateAutostop for
 					// more information.
-					Deadline:    build.MaxDeadline,
-					MaxDeadline: build.MaxDeadline,
-					UpdatedAt:   dbtime.Time(now),
+					Deadline:       build.MaxDeadline,
+					MaxDeadline:    build.MaxDeadline,
+					UpdatedAt:      dbtime.Time(now),
+					DeadlineReason: database.WorkspaceBuildDeadlineReasonAutostopDisabled,
 				}); err != nil {
 					return xerrors.Errorf("update workspace build deadline: %w", err)
 				}
@@ -1783,10 +1784,11 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          build.ID,
-			UpdatedAt:   dbtime.Time(now),
-			Deadline:    newDeadline,
-			MaxDeadline: build.MaxDeadline,
+			ID:             build.ID,
+			UpdatedAt:      dbtime.Time(now),
+			Deadline:       newDeadline,
+			MaxDeadline:    build.MaxDeadline,
+			DeadlineReason: database.WorkspaceBuildDeadlineReasonUserChanged,
 		}); err != nil {
 			code = http.StatusInternalServerError
 			resp.Message = "Failed to extend workspace deadline."

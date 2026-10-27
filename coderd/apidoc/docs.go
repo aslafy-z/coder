@@ -35162,6 +35162,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "deadline_change": {
+                    "description": "DeadlineChange explains the last change to Deadline, or is nil if it is\nunknown.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildDeadlineChange"
+                        }
+                    ]
+                },
                 "has_external_agent": {
                     "type": "boolean"
                 },
@@ -35269,6 +35277,66 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceBuildDeadlineActivity": {
+            "type": "object",
+            "properties": {
+                "sources": {
+                    "description": "Sources are display names, busiest first.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.WorkspaceBuildDeadlineChange": {
+            "type": "object",
+            "properties": {
+                "activity": {
+                    "description": "Activity is set when Reason is activity.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildDeadlineActivity"
+                        }
+                    ]
+                },
+                "changed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "reason": {
+                    "enum": [
+                        "build",
+                        "activity",
+                        "user_changed",
+                        "autostop_disabled",
+                        "template_schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildDeadlineReason"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.WorkspaceBuildDeadlineReason": {
+            "type": "string",
+            "enum": [
+                "build",
+                "activity",
+                "user_changed",
+                "autostop_disabled",
+                "template_schedule"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceBuildDeadlineReasonBuild",
+                "WorkspaceBuildDeadlineReasonActivity",
+                "WorkspaceBuildDeadlineReasonUserChanged",
+                "WorkspaceBuildDeadlineReasonAutostopDisabled",
+                "WorkspaceBuildDeadlineReasonTemplateSchedule"
+            ]
         },
         "codersdk.WorkspaceBuildDebugEventRequest": {
             "type": "object",

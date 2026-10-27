@@ -1425,10 +1425,11 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					maxDeadline = time.Time{}
 				}
 				err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-					ID:          input.WorkspaceBuildID,
-					UpdatedAt:   s.timeNow(),
-					Deadline:    deadline,
-					MaxDeadline: maxDeadline,
+					ID:             input.WorkspaceBuildID,
+					UpdatedAt:      s.timeNow(),
+					Deadline:       deadline,
+					MaxDeadline:    maxDeadline,
+					DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
 				})
 				if err != nil {
 					return xerrors.Errorf("update workspace build deadline: %w", err)
@@ -2259,10 +2260,11 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("update workspace build provisioner state: %w", err)
 		}
 		err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          workspaceBuild.ID,
-			Deadline:    deadline,
-			MaxDeadline: maxDeadline,
-			UpdatedAt:   now,
+			ID:             workspaceBuild.ID,
+			Deadline:       deadline,
+			MaxDeadline:    maxDeadline,
+			UpdatedAt:      now,
+			DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
 		})
 		if err != nil {
 			return xerrors.Errorf("update workspace build deadline: %w", err)

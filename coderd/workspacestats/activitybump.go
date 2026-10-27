@@ -1,7 +1,9 @@
 package workspacestats
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,23 +13,22 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-// ActivityBumpReason represents the reason for an activity bump.
-type ActivityBumpReason string
+// ActivitySource is the display name of activity that extended a deadline.
+type ActivitySource string
 
 const (
-	// ActivityBumpReasonWorkspaceStats indicates the bump was triggered
-	// by SSH or terminal activity reported via workspace stats.
-	ActivityBumpReasonWorkspaceStats ActivityBumpReason = "workspace_stats"
-	// ActivityBumpReasonChatHeartbeat indicates the bump was triggered
-	// by an AI chat heartbeat.
-	ActivityBumpReasonChatHeartbeat ActivityBumpReason = "chat_heartbeat"
-	// ActivityBumpReasonAppActivity indicates the bump was triggered
-	// by app or port-forward activity.
-	ActivityBumpReasonAppActivity ActivityBumpReason = "app_activity"
-	// ActivityBumpReasonChatWorkspaceUpload indicates the bump was
-	// triggered by a chat file upload streaming into the workspace.
-	ActivityBumpReasonChatWorkspaceUpload ActivityBumpReason = "chat_workspace_upload"
+	// ActivitySourceConnection is network traffic without an app session.
+	ActivitySourceConnection ActivitySource = "Open connection"
+	// ActivitySourceChat is a Coder Agents chat using the workspace.
+	ActivitySourceChat ActivitySource = "Coder Agents"
+	// ActivitySourceChatUpload is a chat file upload into the workspace.
+	ActivitySourceChatUpload ActivitySource = "Coder Agents file upload"
 )
+
+// AppStatusActivitySource names a workspace app that reported its status.
+func AppStatusActivitySource(app database.WorkspaceApp) ActivitySource {
+	return ActivitySource(cmp.Or(app.DisplayName, app.Slug))
+}
 
 // ActivityBumpWorkspace automatically bumps the workspace's auto-off timer
 // if it is set to expire soon. The deadline will be bumped by 1 hour*.
@@ -54,12 +55,20 @@ const (
 // A way to avoid this is to configure the max deadline to something that will not
 // span more than 1 day. This will force the workspace to restart and reset the deadline
 // each morning when it autostarts.
-func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Store, workspaceID uuid.UUID, nextAutostart time.Time, reason ActivityBumpReason) {
+func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Store, workspaceID uuid.UUID, nextAutostart time.Time, sources ...ActivitySource) {
 	// We set a short timeout so if the app is under load, these
 	// low priority operations fail first.
 	ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 	defer cancel()
+	// Distinct app names can share a display name.
+	names := make([]string, 0, len(sources))
+	for _, source := range sources {
+		if !slices.Contains(names, string(source)) {
+			names = append(names, string(source))
+		}
+	}
 	err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+		Sources:       names,
 		NextAutostart: nextAutostart.UTC(),
 		WorkspaceID:   workspaceID,
 	})
@@ -68,7 +77,7 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 			// Bump will fail if the context is canceled, but this is ok.
 			log.Error(ctx, "activity bump failed", slog.Error(err),
 				slog.F("workspace_id", workspaceID),
-				slog.F("reason", reason),
+				slog.F("sources", names),
 			)
 		}
 		return
@@ -76,6 +85,6 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 
 	log.Debug(ctx, "bumped deadline from activity",
 		slog.F("workspace_id", workspaceID),
-		slog.F("reason", reason),
+		slog.F("sources", names),
 	)
 }

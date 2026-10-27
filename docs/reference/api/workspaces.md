@@ -100,6 +100,15 @@ of the template will be used.
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "activity": {
+        "sources": [
+          "string"
+        ]
+      },
+      "changed_at": "2019-08-24T14:15:22Z",
+      "reason": "build"
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -483,6 +492,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "activity": {
+        "sources": [
+          "string"
+        ]
+      },
+      "changed_at": "2019-08-24T14:15:22Z",
+      "reason": "build"
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -841,6 +859,15 @@ of the template will be used.
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "activity": {
+        "sources": [
+          "string"
+        ]
+      },
+      "changed_at": "2019-08-24T14:15:22Z",
+      "reason": "build"
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1168,6 +1195,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
+        "deadline_change": {
+          "activity": {
+            "sources": [
+              "string"
+            ]
+          },
+          "changed_at": "2019-08-24T14:15:22Z",
+          "reason": "build"
+        },
         "has_external_agent": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1461,6 +1497,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "activity": {
+        "sources": [
+          "string"
+        ]
+      },
+      "changed_at": "2019-08-24T14:15:22Z",
+      "reason": "build"
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -2096,6 +2141,15 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "activity": {
+        "sources": [
+          "string"
+        ]
+      },
+      "changed_at": "2019-08-24T14:15:22Z",
+      "reason": "build"
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",

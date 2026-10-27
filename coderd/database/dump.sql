@@ -765,6 +765,14 @@ CREATE TYPE workspace_app_status_state AS ENUM (
     'idle'
 );
 
+CREATE TYPE workspace_build_deadline_reason AS ENUM (
+    'build',
+    'activity',
+    'user_changed',
+    'autostop_disabled',
+    'template_schedule'
+);
+
 CREATE TYPE workspace_secret_source AS ENUM (
     'request',
     'carry_forward'
@@ -4268,10 +4276,19 @@ CREATE TABLE workspace_builds (
     template_version_preset_id uuid,
     has_external_agent boolean,
     notified_autostop_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    deadline_reason workspace_build_deadline_reason,
+    deadline_changed_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    deadline_details jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
 );
 
 COMMENT ON COLUMN workspace_builds.notified_autostop_deadline IS 'The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.';
+
+COMMENT ON COLUMN workspace_builds.deadline_reason IS 'Why deadline last changed. NULL for builds whose deadline predates this column.';
+
+COMMENT ON COLUMN workspace_builds.deadline_changed_at IS 'When deadline last changed.';
+
+COMMENT ON COLUMN workspace_builds.deadline_details IS 'Reason-specific details of the last deadline change, for example {"sources": [...]} for activity.';
 
 CREATE VIEW workspace_build_with_user AS
  SELECT workspace_builds.id,
@@ -4290,6 +4307,9 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.template_version_preset_id,
     workspace_builds.has_external_agent,
     workspace_builds.notified_autostop_deadline,
+    workspace_builds.deadline_reason,
+    workspace_builds.deadline_changed_at,
+    workspace_builds.deadline_details,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username,
     COALESCE(visible_users.name, ''::text) AS initiator_by_name

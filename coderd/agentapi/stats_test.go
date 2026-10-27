@@ -152,6 +152,7 @@ func TestUpdateStats(t *testing.T) {
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
+			Sources:       []string{"SSH", "Web Terminal", "JetBrains", "VS Code"},
 			WorkspaceID:   workspace.ID,
 			NextAutostart: time.Time{}.UTC(),
 		}).Return(nil)
@@ -377,6 +378,7 @@ func TestUpdateStats(t *testing.T) {
 		// We expect an activity bump because ConnectionCount > 0. However, the
 		// next autostart time will be set on the bump.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
+			Sources:       []string{"Open connection"},
 			WorkspaceID:   workspace.ID,
 			NextAutostart: nextAutostart,
 		}).Return(nil)
@@ -489,6 +491,7 @@ func TestUpdateStats(t *testing.T) {
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
+			Sources:       []string{"Open connection"},
 			WorkspaceID:   workspace.ID,
 			NextAutostart: time.Time{}.UTC(),
 		}).Return(nil)
@@ -625,6 +628,7 @@ func TestUpdateStats(t *testing.T) {
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
+			Sources:       []string{"SSH", "Web Terminal", "JetBrains", "VS Code"},
 			WorkspaceID:   workspace.ID,
 			NextAutostart: time.Time{}.UTC(),
 		}).Return(nil)

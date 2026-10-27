@@ -92,6 +92,43 @@ type WorkspaceBuild struct {
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
 	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
 	HasExternalAgent        *bool                `json:"has_external_agent,omitempty"`
+	// DeadlineChange explains the last change to Deadline, or is nil if it is
+	// unknown.
+	DeadlineChange *WorkspaceBuildDeadlineChange `json:"deadline_change,omitempty"`
+}
+
+// WorkspaceBuildDeadlineReason is why a build's deadline last changed.
+type WorkspaceBuildDeadlineReason string
+
+const (
+	// WorkspaceBuildDeadlineReasonBuild is the deadline set when the build
+	// completed.
+	WorkspaceBuildDeadlineReasonBuild WorkspaceBuildDeadlineReason = "build"
+	// WorkspaceBuildDeadlineReasonActivity is workspace activity extending the
+	// deadline.
+	WorkspaceBuildDeadlineReasonActivity WorkspaceBuildDeadlineReason = "activity"
+	// WorkspaceBuildDeadlineReasonUserChanged is a user setting the deadline.
+	WorkspaceBuildDeadlineReasonUserChanged WorkspaceBuildDeadlineReason = "user_changed"
+	// WorkspaceBuildDeadlineReasonAutostopDisabled is a user turning off
+	// autostop, leaving only the template's required stop.
+	WorkspaceBuildDeadlineReasonAutostopDisabled WorkspaceBuildDeadlineReason = "autostop_disabled"
+	// WorkspaceBuildDeadlineReasonTemplateSchedule is a template schedule
+	// change.
+	WorkspaceBuildDeadlineReasonTemplateSchedule WorkspaceBuildDeadlineReason = "template_schedule"
+)
+
+// WorkspaceBuildDeadlineChange explains the last change to a build's deadline.
+type WorkspaceBuildDeadlineChange struct {
+	Reason    WorkspaceBuildDeadlineReason `json:"reason" enums:"build,activity,user_changed,autostop_disabled,template_schedule"`
+	ChangedAt time.Time                    `json:"changed_at" format:"date-time"`
+	// Activity is set when Reason is activity.
+	Activity *WorkspaceBuildDeadlineActivity `json:"activity,omitempty"`
+}
+
+// WorkspaceBuildDeadlineActivity is the activity that extended a deadline.
+type WorkspaceBuildDeadlineActivity struct {
+	// Sources are display names, busiest first.
+	Sources []string `json:"sources"`
 }
 
 // WorkspaceResource describes resources used to create a workspace, for instance:

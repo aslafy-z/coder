@@ -1,8 +1,12 @@
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
-import type { Workspace } from "#/api/typesGenerated";
+import type {
+	Workspace,
+	WorkspaceBuildDeadlineChange,
+} from "#/api/typesGenerated";
 import * as Mocks from "#/testHelpers/entities";
 import {
+	deadlineChangeMessage,
 	deadlineExtensionMax,
 	deadlineExtensionMin,
 	extractTimezone,
@@ -74,6 +78,68 @@ describe("util/schedule", () => {
 			const minDeadline = dayjs();
 			// you can only subtract 2 hours even though the min is 2:40 less
 			expect(getMaxDeadlineChange(deadline, minDeadline)).toEqual(2);
+		});
+	});
+
+	describe("deadlineChangeMessage", () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2025-07-15T14:30:00.000Z"));
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		const changedAt = "2025-07-15T14:28:00.000Z";
+
+		it.each<[WorkspaceBuildDeadlineChange, string | undefined]>([
+			[
+				{
+					reason: "activity",
+					changed_at: changedAt,
+					activity: { sources: ["Cursor", "SSH", "Zed"] },
+				},
+				"Activity from Cursor, SSH, and Zed extended this deadline 2 minutes ago.",
+			],
+			[
+				{
+					reason: "activity",
+					changed_at: changedAt,
+					activity: { sources: ["Cursor", "SSH", "Zed", "SFTP"] },
+				},
+				"Activity from Cursor, SSH, Zed, and 1 more extended this deadline 2 minutes ago.",
+			],
+			[
+				{ reason: "user_changed", changed_at: changedAt },
+				"A user changed this deadline 2 minutes ago.",
+			],
+			[
+				{ reason: "autostop_disabled", changed_at: changedAt },
+				"A user turned off autostop 2 minutes ago.",
+			],
+			[
+				{ reason: "template_schedule", changed_at: changedAt },
+				"A schedule change on the Test Template template set this deadline 2 minutes ago.",
+			],
+			[{ reason: "build", changed_at: changedAt }, undefined],
+			[
+				{ reason: "activity", changed_at: changedAt },
+				"Activity extended this deadline 2 minutes ago.",
+			],
+		])("explains %j", (change, expected) => {
+			expect(deadlineChangeMessage(change, Mocks.MockTemplate)).toBe(expected);
+		});
+
+		it("falls back to the template name", () => {
+			expect(
+				deadlineChangeMessage(
+					{ reason: "template_schedule", changed_at: changedAt },
+					{ ...Mocks.MockTemplate, display_name: "" },
+				),
+			).toBe(
+				`A schedule change on the ${Mocks.MockTemplate.name} template set this deadline 2 minutes ago.`,
+			);
 		});
 	});
 

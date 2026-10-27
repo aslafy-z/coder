@@ -12835,7 +12835,52 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	readonly has_external_agent?: boolean;
+	/**
+	 * DeadlineChange explains the last change to Deadline, or is nil if it is
+	 * unknown.
+	 */
+	readonly deadline_change?: WorkspaceBuildDeadlineChange;
 }
+
+// From codersdk/workspacebuilds.go
+/**
+ * WorkspaceBuildDeadlineActivity is the activity that extended a deadline.
+ */
+export interface WorkspaceBuildDeadlineActivity {
+	/**
+	 * Sources are display names, busiest first.
+	 */
+	readonly sources: readonly string[];
+}
+
+// From codersdk/workspacebuilds.go
+/**
+ * WorkspaceBuildDeadlineChange explains the last change to a build's deadline.
+ */
+export interface WorkspaceBuildDeadlineChange {
+	readonly reason: WorkspaceBuildDeadlineReason;
+	readonly changed_at: string;
+	/**
+	 * Activity is set when Reason is activity.
+	 */
+	readonly activity?: WorkspaceBuildDeadlineActivity;
+}
+
+// From codersdk/workspacebuilds.go
+export type WorkspaceBuildDeadlineReason =
+	| "activity"
+	| "autostop_disabled"
+	| "build"
+	| "template_schedule"
+	| "user_changed";
+
+export const WorkspaceBuildDeadlineReasons: WorkspaceBuildDeadlineReason[] = [
+	"activity",
+	"autostop_disabled",
+	"build",
+	"template_schedule",
+	"user_changed",
+];
 
 // From codersdk/workspacebuilds.go
 /**

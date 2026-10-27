@@ -267,7 +267,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 
 				// Bump duration is measured from the time of the bump, so we measure from here.
 				start := dbtime.Now()
-				workspacestats.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, nextAutostart(start), workspacestats.ActivityBumpReasonWorkspaceStats)
+				workspacestats.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, nextAutostart(start), "Cursor", "SSH", "Cursor")
 				end := dbtime.Now()
 
 				// Validate our state after bump
@@ -278,9 +278,14 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				if tt.expectedBump == 0 {
 					assert.Equal(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should not have bumped updated_at")
 					assert.Equal(t, bld.Deadline.UTC(), updatedBuild.Deadline.UTC(), "should not have bumped deadline")
+					assert.False(t, updatedBuild.DeadlineReason.Valid, "should not have recorded a deadline reason")
+					assert.JSONEq(t, `{}`, string(updatedBuild.DeadlineDetails), "should not have recorded details")
 					return
 				}
 				assert.NotEqual(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should have bumped updated_at")
+				assert.Equal(t, database.NullWorkspaceBuildDeadlineReason{WorkspaceBuildDeadlineReason: database.WorkspaceBuildDeadlineReasonActivity, Valid: true}, updatedBuild.DeadlineReason)
+				assert.JSONEq(t, `{"sources": ["Cursor", "SSH"]}`, string(updatedBuild.DeadlineDetails), "should have recorded deduplicated activity sources")
+				assert.False(t, updatedBuild.DeadlineChangedAt.IsZero(), "should have recorded change time")
 				if tt.maxDeadlineOffset != nil {
 					assert.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.MaxDeadline.UTC(), "new deadline must equal original max deadline")
 					return
@@ -291,9 +296,33 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				expectedDeadlineEnd := end.Add(tt.expectedBump).Add(time.Minute)
 				require.GreaterOrEqual(t, updatedBuild.Deadline, expectedDeadlineStart, "new deadline should be greater than or equal to start")
 				require.LessOrEqual(t, updatedBuild.Deadline, expectedDeadlineEnd, "new deadline should be less than or equal to end")
+
+				// A user change replaces the activity explanation, and a bump
+				// capped at max deadline does not overwrite it.
+				pinned := dbtime.Now().Add(time.Minute)
+				require.NoError(t, db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+					ID: buildID, UpdatedAt: dbtime.Now(), Deadline: pinned, MaxDeadline: pinned,
+					DeadlineReason: database.WorkspaceBuildDeadlineReasonUserChanged,
+				}))
+				userChange, err := db.GetWorkspaceBuildByID(ctx, buildID)
+				require.NoError(t, err)
+				workspacestats.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, time.Time{}, "SSH")
+				updatedBuild, err = db.GetWorkspaceBuildByID(ctx, buildID)
+				require.NoError(t, err)
+				assert.Equal(t, pinned.UTC(), updatedBuild.Deadline.UTC())
+				assert.Equal(t, database.NullWorkspaceBuildDeadlineReason{WorkspaceBuildDeadlineReason: database.WorkspaceBuildDeadlineReasonUserChanged, Valid: true}, updatedBuild.DeadlineReason)
+				assert.Equal(t, userChange.DeadlineChangedAt.UTC(), updatedBuild.DeadlineChangedAt.UTC())
+				assert.JSONEq(t, `{}`, string(updatedBuild.DeadlineDetails))
 			})
 		}
 	}
+}
+
+func TestAppStatusActivitySource(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, workspacestats.ActivitySource("Claude Code"), workspacestats.AppStatusActivitySource(database.WorkspaceApp{DisplayName: "Claude Code", Slug: "claude-code"}))
+	assert.Equal(t, workspacestats.ActivitySource("claude-code"), workspacestats.AppStatusActivitySource(database.WorkspaceApp{Slug: "claude-code"}))
 }
 
 func insertPrevWorkspaceBuild(t *testing.T, db database.Store, orgID, tvID, workspaceID uuid.UUID, transition database.WorkspaceTransition, buildNumber int32) {

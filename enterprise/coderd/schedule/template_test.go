@@ -263,10 +263,11 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			require.NotEmpty(t, buildProvisionerState, "provisioner state must not be empty")
 
 			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-				ID:          buildResp.Build.ID,
-				UpdatedAt:   buildTime,
-				Deadline:    c.deadline,
-				MaxDeadline: c.maxDeadline,
+				DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+				ID:             buildResp.Build.ID,
+				UpdatedAt:      buildTime,
+				Deadline:       c.deadline,
+				MaxDeadline:    c.maxDeadline,
 			})
 			require.NoError(t, err)
 
@@ -311,6 +312,13 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 
 			require.WithinDuration(t, c.newDeadline, newBuild.Deadline, time.Second, "deadline")
 			require.WithinDuration(t, c.newMaxDeadline, newBuild.MaxDeadline, time.Second, "max_deadline")
+
+			// Only a schedule change that moves the deadline claims it.
+			wantReason := wsBuild.DeadlineReason
+			if !newBuild.Deadline.Equal(wsBuild.Deadline) {
+				wantReason = database.NullWorkspaceBuildDeadlineReason{WorkspaceBuildDeadlineReason: database.WorkspaceBuildDeadlineReasonTemplateSchedule, Valid: true}
+			}
+			require.Equal(t, wantReason, newBuild.DeadlineReason, "deadline_reason")
 
 			// Check that the new build has the same state as before.
 			newBuildProvisionerStateRow, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, newBuild.ID)
@@ -508,10 +516,11 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		require.NotEmpty(t, wsBuildProvisionerState, "provisioner state must not be empty")
 
 		err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          wsBuild.ID,
-			UpdatedAt:   buildTime,
-			Deadline:    originalMaxDeadline,
-			MaxDeadline: originalMaxDeadline,
+			DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+			ID:             wsBuild.ID,
+			UpdatedAt:      buildTime,
+			Deadline:       originalMaxDeadline,
+			MaxDeadline:    originalMaxDeadline,
 		})
 		require.NoError(t, err)
 

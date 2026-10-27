@@ -227,6 +227,9 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"template_version_preset_id": ActionIgnore, // Never changes.
 		"has_external_agent":         ActionIgnore, // Never changes.
 		"notified_autostop_deadline": ActionIgnore, // Updated by the notification system, not by user action.
+		"deadline_reason":            ActionIgnore, // Updated alongside deadline.
+		"deadline_changed_at":        ActionIgnore, // Updated alongside deadline.
+		"deadline_details":           ActionIgnore, // Updated alongside deadline.
 	},
 	&database.AuditableGroup{}: {
 		"id":                      ActionTrack,

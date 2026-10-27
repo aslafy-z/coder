@@ -75,6 +75,30 @@ func TestHasSessionCounts(t *testing.T) {
 	}
 }
 
+func TestActivitySources(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		stats *agentproto.Stats
+		want  []ActivitySource
+	}{
+		{"ConnectionsWithoutSessions", &agentproto.Stats{ConnectionCount: 1}, []ActivitySource{ActivitySourceConnection}},
+		{
+			"BusiestFirstThenByName",
+			&agentproto.Stats{SessionCounts: map[string]int64{"ssh": 1, "Cursor": 2, "jetbrains": 1}},
+			[]ActivitySource{"Cursor", "JetBrains", "SSH"},
+		},
+		{"DeprecatedFields", &agentproto.Stats{SessionCountReconnectingPty: 1}, []ActivitySource{"Web Terminal"}},
+		{"UnknownApp", &agentproto.Stats{SessionCounts: map[string]int64{"my-ide": 1}}, []ActivitySource{"my_ide"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, activitySources(tc.stats))
+		})
+	}
+}
+
 func TestClearSessionCounts(t *testing.T) {
 	t.Parallel()
 

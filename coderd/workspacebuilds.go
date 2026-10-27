@@ -1586,6 +1586,20 @@ func (api *API) convertWorkspaceBuild(
 	if build.HasExternalAgent.Valid {
 		hasExternalAgent = &build.HasExternalAgent.Bool
 	}
+	var deadlineChange *codersdk.WorkspaceBuildDeadlineChange
+	if build.DeadlineReason.Valid {
+		deadlineChange = &codersdk.WorkspaceBuildDeadlineChange{
+			Reason:    codersdk.WorkspaceBuildDeadlineReason(build.DeadlineReason.WorkspaceBuildDeadlineReason),
+			ChangedAt: build.DeadlineChangedAt,
+		}
+		if build.DeadlineReason.WorkspaceBuildDeadlineReason == database.WorkspaceBuildDeadlineReasonActivity {
+			deadlineChange.Activity = &codersdk.WorkspaceBuildDeadlineActivity{}
+			if err := json.Unmarshal(build.DeadlineDetails, deadlineChange.Activity); err != nil {
+				api.Logger.Warn(context.Background(), "unmarshal deadline details", slog.F("workspace_build_id", build.ID), slog.Error(err))
+				deadlineChange.Activity = nil
+			}
+		}
+	}
 
 	apiJob := convertProvisionerJob(job)
 	transition := codersdk.WorkspaceTransition(build.Transition)
@@ -1614,6 +1628,7 @@ func (api *API) convertWorkspaceBuild(
 		MatchedProvisioners:     &matchedProvisioners,
 		TemplateVersionPresetID: presetID,
 		HasExternalAgent:        hasExternalAgent,
+		DeadlineChange:          deadlineChange,
 	}, nil
 }
 

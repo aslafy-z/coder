@@ -74,8 +74,9 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		}
 
 		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:        workspace.LatestBuild.ID,
-			UpdatedAt: dbtime.Now(),
+			DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+			ID:             workspace.LatestBuild.ID,
+			UpdatedAt:      dbtime.Now(),
 			// Make the deadline really close so it needs to be bumped immediately.
 			Deadline:    dbtime.Now().Add(time.Minute),
 			MaxDeadline: maxDeadline,
@@ -176,6 +177,10 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			)
 
 			require.Greater(t, workspace.LatestBuild.Deadline.Time, updatedAfter)
+			// These tests dial without opening a session.
+			require.NotNil(t, workspace.LatestBuild.DeadlineChange)
+			require.Equal(t, codersdk.WorkspaceBuildDeadlineReasonActivity, workspace.LatestBuild.DeadlineChange.Reason)
+			require.Equal(t, &codersdk.WorkspaceBuildDeadlineActivity{Sources: []string{"Open connection"}}, workspace.LatestBuild.DeadlineChange.Activity)
 
 			// If the workspace has a max deadline, the deadline must not exceed
 			// it.
