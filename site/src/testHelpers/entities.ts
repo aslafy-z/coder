@@ -202,8 +202,8 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
 	},
 ];
 
-export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
-	...MockWorkspaceProxies.reduce(
+export const MockProxyLatencies: Record<string, ProxyLatencyReport> =
+	MockWorkspaceProxies.reduce(
 		(acc, proxy) => {
 			if (!proxy.healthy) {
 				return acc;
@@ -234,8 +234,7 @@ export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
 			return acc;
 		},
 		{} as Record<string, ProxyLatencyReport>,
-	),
-};
+	);
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	agent_api_version: "1.0",
@@ -556,6 +555,7 @@ export const MockChatProject: TypesGen.ChatProject = {
 	icon: "",
 	created_at: "2026-09-01T12:00:00Z",
 	updated_at: "2026-09-02T12:00:00Z",
+	permissions: { update: true, delete: true, share: true },
 };
 
 export const MockChatProjectInstructions: TypesGen.ChatProjectInstructions = {
@@ -5574,6 +5574,15 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_read_input_tokens: 900,
 		cache_write_input_tokens: 140,
 		metadata: {},
+		cost_micros: 15_325,
+		has_unpriced_usage: false,
+	},
+	priced_model: {
+		model: "claude-opus-4-6",
+		input_price: 5_000_000,
+		output_price: 25_000_000,
+		cache_read_price: 500_000,
+		cache_write_price: 6_250_000,
 	},
 	attribution: {
 		workspace_id: "workspace-1",
@@ -5591,6 +5600,8 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 				cache_read_input_tokens: 450,
 				cache_write_input_tokens: 70,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [

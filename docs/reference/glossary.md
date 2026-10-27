@@ -166,6 +166,11 @@ Refer to the [`coder_metadata` resource](https://registry.terraform.io/providers
 The Terraform resource that runs a shell script inside the workspace on start or stop, or on demand.
 Refer to the [`coder_script` resource](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script).
 
+### `coder_script_order`
+
+The Terraform data source that declares dependencies between startup or shutdown scripts within one workspace agent or dev container sub-agent.
+Refer to [Order startup and shutdown scripts](../admin/templates/extending-templates/script-ordering.md).
+
 ### `coderd`
 
 The process that runs the [control plane](#control-plane), started with [`coder server`](#coder-server).
@@ -261,8 +266,7 @@ Refer to [Dotfiles](../user-guides/workspace-dotfiles.md).
 
 ### Dynamic parameters
 
-Template inputs that can change per build, with conditional visibility and validation.
-Refer to [Dynamic parameters](../admin/templates/extending-templates/dynamic-parameters.md).
+Refer to [Parameters](#parameters).
 
 ## E
 
@@ -391,6 +395,12 @@ The top-level administrator role, with full access to the deployment and every o
 Refer to [Groups and roles](../admin/users/groups-roles.md).
 
 ## P
+
+### Parameters
+
+Template inputs that a user sets when they create or update a workspace, with conditional visibility, identity-aware values, and validation.
+Previously, the conditional and identity-aware capabilities were called dynamic parameters.
+Refer to [Parameters](../admin/templates/extending-templates/parameters/index.md).
 
 ### Peripheral resource
 
