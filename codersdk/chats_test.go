@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -63,6 +64,16 @@ func TestUploadChatWorkspaceFileContentType(t *testing.T) {
 	}
 }
 
+type closeCountingBody struct {
+	io.Reader
+	closes *atomic.Int32
+}
+
+func (b closeCountingBody) Close() error {
+	b.closes.Add(1)
+	return nil
+}
+
 func TestChatClientRequests(t *testing.T) {
 	t.Parallel()
 
@@ -72,12 +83,12 @@ func TestChatClientRequests(t *testing.T) {
 		require.NoError(t, err)
 		return codersdk.New(serverURL, codersdk.WithHTTPClient(&http.Client{Transport: transport}))
 	}
-	respond := func(status int, body string) testutil.RoundTripperFunc {
+	respond := func(status int, body string, closes *atomic.Int32) testutil.RoundTripperFunc {
 		return func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: status,
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
-				Body:       io.NopCloser(strings.NewReader(body)),
+				Body:       closeCountingBody{Reader: strings.NewReader(body), closes: closes},
 				Request:    req,
 			}, nil
 		}
@@ -103,10 +114,13 @@ func TestChatClientRequests(t *testing.T) {
 		t.Parallel()
 
 		for _, status := range []int{http.StatusAccepted, http.StatusInternalServerError} {
-			client := newClient(t, respond(status, `{"message":"Unexpected status."}`))
+			var closes atomic.Int32
+			client := newClient(t, respond(status, `{"message":"Unexpected status."}`, &closes))
 			model, modelErr := client.ChatModel(t.Context(), uuid.New(), uuid.New())
 			require.Zero(t, model)
+			require.EqualValues(t, 1, closes.Swap(0))
 			deleteErr := client.DeleteChatModel(t.Context(), uuid.New(), uuid.New())
+			require.EqualValues(t, 1, closes.Swap(0))
 			for _, err := range []error{modelErr, deleteErr} {
 				var sdkErr *codersdk.Error
 				require.ErrorAs(t, err, &sdkErr)
@@ -119,24 +133,28 @@ func TestChatClientRequests(t *testing.T) {
 	t.Run("InvalidJSON", func(t *testing.T) {
 		t.Parallel()
 
-		client := newClient(t, respond(http.StatusOK, `{"id":`))
+		var closes atomic.Int32
+		client := newClient(t, respond(http.StatusOK, `{"id":`, &closes))
 		_, err := client.ChatModel(t.Context(), uuid.New(), uuid.New())
 		require.ErrorContains(t, err, "Received an invalid JSON response from the Coder API.")
+		require.EqualValues(t, 1, closes.Load())
 	})
 
 	t.Run("RequestOptions", func(t *testing.T) {
 		t.Parallel()
 
 		var query url.Values
+		var closes atomic.Int32
 		client := newClient(t, func(req *http.Request) (*http.Response, error) {
 			query = req.URL.Query()
-			return respond(http.StatusOK, `{}`)(req)
+			return respond(http.StatusOK, `{}`, &closes)(req)
 		})
 		_, err := client.ChatModelACLAvailable(t.Context(), uuid.New(), uuid.New(), codersdk.UsersRequest{
 			Search:     "alice",
 			Pagination: codersdk.Pagination{Limit: 5},
 		})
 		require.NoError(t, err)
+		require.EqualValues(t, 1, closes.Load())
 		require.Equal(t, "alice", query.Get("q"))
 		require.Equal(t, "5", query.Get("limit"))
 	})
