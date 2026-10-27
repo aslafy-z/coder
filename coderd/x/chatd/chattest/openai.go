@@ -225,6 +225,9 @@ type openAIServer struct {
 	server  *httptest.Server
 	handler OpenAIHandler
 	request *OpenAIRequest
+	// unstoredItems holds the ids of output items served for store: false
+	// requests, which OpenAI cannot resolve as item references.
+	unstoredItems map[string]struct{}
 }
 
 // OpenAI creates a fake OpenAI-compatible test server with a
@@ -255,8 +258,9 @@ func NewOpenAI(t testing.TB, handler OpenAIHandler) string {
 	t.Helper()
 
 	s := &openAIServer{
-		t:       t,
-		handler: handler,
+		t:             t,
+		handler:       handler,
+		unstoredItems: make(map[string]struct{}),
 	}
 
 	mux := http.NewServeMux()
@@ -313,6 +317,10 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	if req.Prompt != nil {
+		if errResp := s.unstoredItemReference(req.Prompt); errResp != nil {
+			writeErrorResponse(s.t, w, errResp)
+			return
+		}
 		if errResp := ValidateResponsesAPIInput(req.Prompt); errResp != nil {
 			writeErrorResponse(s.t, w, errResp)
 			return
@@ -321,6 +329,37 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 
 	resp := s.handler(&req)
 	s.writeResponsesAPIResponse(w, &req, resp)
+}
+
+// unstoredItemReference returns the 404 OpenAI sends for an item_reference
+// to an item from a store: false response.
+func (s *openAIServer) unstoredItemReference(prompt []any) *ErrorResponse {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, raw := range prompt {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		id := ResponsesItemReferenceID(item)
+		if _, unstored := s.unstoredItems[id]; id != "" && unstored {
+			return &ErrorResponse{
+				StatusCode: http.StatusNotFound,
+				Type:       "invalid_request_error",
+				Message:    fmt.Sprintf("Item with id '%s' not found.", id),
+			}
+		}
+	}
+	return nil
+}
+
+func (s *openAIServer) recordServedItem(req *OpenAIRequest, id string) {
+	if req.Store == nil || *req.Store || id == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.unstoredItems[id] = struct{}{}
 }
 
 func (s *openAIServer) writeChatCompletionsResponse(w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
@@ -375,7 +414,7 @@ func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *Ope
 		http.Error(w, "handler returned streaming response for non-streaming request", http.StatusInternalServerError)
 		return
 	case hasStreaming:
-		writeResponsesAPIStreaming(s.t, w, req, resp)
+		writeResponsesAPIStreaming(s.t, w, req, resp, func(id string) { s.recordServedItem(req, id) })
 	default:
 		s.writeResponsesAPINonStreaming(w, resp.Response)
 	}
@@ -530,7 +569,7 @@ func writeNamedSSEEvent(w http.ResponseWriter, eventType string, v interface{}) 
 	return err
 }
 
-func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
+func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse, servedItem func(id string)) {
 	r := req.Request
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -568,6 +607,9 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAI
 	outputs := make(map[int]*outputItemState)
 
 	writeEvent := func(eventType string, payload map[string]interface{}) bool {
+		if item, ok := payload["item"].(map[string]any); ok && eventType == "response.output_item.done" {
+			servedItem(StringResponseField(item, "id"))
+		}
 		payload["type"] = eventType
 		payload["sequence_number"] = sequenceNumber
 		sequenceNumber++
