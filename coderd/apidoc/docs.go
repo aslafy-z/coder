@@ -3115,6 +3115,18 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -20851,7 +20863,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "max_uses_per_run": {
-                    "description": "MaxUsesPerRun caps how many times the advisor can be invoked per\nchat run. 0 means unlimited.",
+                    "description": "MaxUsesPerRun caps how many times the advisor can be invoked per\nchat turn. 0 means unlimited.",
                     "type": "integer"
                 }
             }

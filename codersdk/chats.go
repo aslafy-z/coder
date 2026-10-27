@@ -1376,7 +1376,7 @@ type AdvisorConfig struct {
 	// The field is read-only and ignores any stored value.
 	Enabled bool `json:"enabled"`
 	// MaxUsesPerRun caps how many times the advisor can be invoked per
-	// chat run. 0 means unlimited.
+	// chat turn. 0 means unlimited.
 	MaxUsesPerRun int `json:"max_uses_per_run"`
 	// MaxOutputTokens caps the advisor model response tokens. 0 means
 	// use the runtime default.
