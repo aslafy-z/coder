@@ -278,6 +278,7 @@ describe("ChatPageInput", () => {
 		// mode, and an edit submit leaves it while the request runs.
 		const EditingChatPageInput: React.FC<ChatPageInputProps> = (props) => {
 			const [isEditing, setIsEditing] = useState(false);
+			const [isSendPending, setIsSendPending] = useState(false);
 			return (
 				<>
 					<button type="button" onClick={() => setIsEditing(true)}>
@@ -286,11 +287,17 @@ describe("ChatPageInput", () => {
 					<ChatPageInput
 						{...props}
 						isEditing={isEditing}
+						isSendPending={isSendPending}
 						initialValue={isEditing ? "edited" : ""}
 						remountKey={isEditing ? 1 : 0}
-						onSend={() => {
+						onSend={async () => {
 							setIsEditing(false);
-							return edit.promise;
+							setIsSendPending(true);
+							try {
+								await edit.promise;
+							} finally {
+								setIsSendPending(false);
+							}
 						}}
 					/>
 				</>
@@ -324,7 +331,9 @@ describe("ChatPageInput", () => {
 		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
 
 		await screen.findByRole("button", { name: "Remove archive.zip" });
-		edit.resolve(undefined);
+		await act(async () => {
+			edit.resolve(undefined);
+		});
 	});
 
 	it("offers no queue actions on a row a pending send shows", async () => {
