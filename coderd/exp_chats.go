@@ -3743,11 +3743,13 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
 	}
 
+	pacer := newChatStreamPacer(ctx, wsNetConn, conn, api.Clock)
+
 	sendChatStreamBatch := func(batch []codersdk.ChatStreamEvent) error {
 		if len(batch) == 0 {
 			return nil
 		}
-		return writeChatStreamBatch(wsNetConn, batch)
+		return writeChatStreamBatch(pacer, batch)
 	}
 
 	drainChatStreamBatch := func(
@@ -3800,7 +3802,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-keepalive.C:
-			if err := writeChatStreamBatch(wsNetConn, []codersdk.ChatStreamEvent{}); err != nil {
+			if err := writeChatStreamBatch(pacer, []codersdk.ChatStreamEvent{}); err != nil {
 				logger.Debug(ctx, "failed to send chat stream keepalive", slog.Error(err))
 				return
 			}
@@ -3840,9 +3842,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // A message holds the write lock until the kernel accepts it, so the 5 s
 // cap needs a 512 KiB worst-case chunk message to drain at 0.84 Mbit/s or
 // more. The 15 s total also covers the pong, which waits for every byte
-// queued in the kernel and proxies. With a 10 MiB image, an unsplit
-// message failed at 1 and 4 Mbit/s; chunks passed at 4 Mbit/s, and at
-// 1 Mbit/s only while under about 1.9 MB was queued.
+// queued in the kernel and proxies; chatStreamPacer bounds those bytes.
 func writeChatStreamBatch(w io.Writer, batch []codersdk.ChatStreamEvent) error {
 	data, err := json.Marshal(batch)
 	if err != nil {
