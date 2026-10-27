@@ -4189,6 +4189,7 @@ const (
 	WorkspaceAgentContextBodyKindHook            WorkspaceAgentContextBodyKind = "hook"
 	WorkspaceAgentContextBodyKindSubagent        WorkspaceAgentContextBodyKind = "subagent"
 	WorkspaceAgentContextBodyKindCommand         WorkspaceAgentContextBodyKind = "command"
+	WorkspaceAgentContextBodyKindAcpHarness      WorkspaceAgentContextBodyKind = "acp_harness"
 )
 
 func (e *WorkspaceAgentContextBodyKind) Scan(src interface{}) error {
@@ -4235,7 +4236,8 @@ func (e WorkspaceAgentContextBodyKind) Valid() bool {
 		WorkspaceAgentContextBodyKindPlugin,
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
-		WorkspaceAgentContextBodyKindCommand:
+		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness:
 		return true
 	}
 	return false
@@ -4251,6 +4253,7 @@ func AllWorkspaceAgentContextBodyKindValues() []WorkspaceAgentContextBodyKind {
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
 		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness,
 	}
 }
 
@@ -6218,6 +6221,8 @@ type Skill struct {
 	Enabled        bool          `db:"enabled" json:"enabled"`
 	GroupACL       ChatACL       `db:"group_acl" json:"group_acl"`
 	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
+	Action         bool          `db:"action" json:"action"`
+	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service

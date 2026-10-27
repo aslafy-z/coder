@@ -346,15 +346,14 @@ type ChatContext struct {
 	// Error is the snapshot-level error copied from the pinned snapshot
 	// (empty when healthy).
 	Error string `json:"error,omitempty"`
-	// Resources is the chat's pinned context (instruction files and
-	// skills) the prompt is built from, metadata only (no bodies). It is
-	// populated only on the single-chat GET response; list and watch
+	// Resources is the chat's pinned workspace-context inventory,
+	// metadata only (no bodies). It is populated only on the single-chat
+	// GET response; list and watch
 	// payloads leave it nil to stay lightweight.
 	Resources []ChatContextResource `json:"resources,omitempty"`
 }
 
-// ChatContextResourceKind classifies a pinned context resource the prompt
-// uses. Only the kinds that contribute to the prompt are reported.
+// ChatContextResourceKind classifies a pinned workspace-context resource.
 type ChatContextResourceKind string
 
 const (
@@ -362,17 +361,20 @@ const (
 	ChatContextResourceKindSkill           ChatContextResourceKind = "skill"
 	ChatContextResourceKindMCPConfig       ChatContextResourceKind = "mcp_config"
 	ChatContextResourceKindMCPServer       ChatContextResourceKind = "mcp_server"
+	ChatContextResourceKindACPHarness      ChatContextResourceKind = "acp_harness"
 )
 
-// ChatContextResource is one pinned workspace-context resource the chat's
-// prompt is built from. It is metadata only; bodies are omitted. Reported
+// ChatContextResource is one resource in the chat's pinned workspace-context
+// inventory. It is metadata only; bodies are omitted. Reported
 // only on the single-chat GET response.
 type ChatContextResource struct {
 	// Source is the resource locator: the canonical file path for an
 	// instruction file, the skill directory for a skill, the file path for
-	// an MCP config, or the server name for an MCP server.
+	// an MCP config, the server name for an MCP server, or an ACP harness slug.
 	Source string                  `json:"source"`
 	Kind   ChatContextResourceKind `json:"kind"`
+	// SourcePath is the configuration directory for an ACP harness.
+	SourcePath string `json:"source_path,omitempty"`
 	// SizeBytes is the original payload size in bytes.
 	SizeBytes int64 `json:"size_bytes"`
 	// SkillName and SkillDescription are populated only for skill kinds.
@@ -423,6 +425,13 @@ type ChatFileMetadata struct {
 	MimeType       string    `json:"mime_type"`
 	SizeBytes      int64     `json:"size_bytes"`
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
+}
+
+// ChatACPTranscriptMessage is a workspace-local ACP message returned by
+// acp_wait_agent without database message metadata.
+type ChatACPTranscriptMessage struct {
+	Role    ChatMessageRole   `json:"role"`
+	Content []ChatMessagePart `json:"content"`
 }
 
 // ChatMessage represents a single message in a chat.
@@ -481,6 +490,10 @@ const (
 	ChatMessagePartTypeContextFile            ChatMessagePartType = "context-file"
 	ChatMessagePartTypeSkill                  ChatMessagePartType = "skill"
 	ChatMessagePartTypeWorkspaceFileReference ChatMessagePartType = "workspace-file-reference"
+	// ChatMessagePartTypeSkillInvocation is a skill the user attached to
+	// a message. The server loads the skill body when the message is sent
+	// and renders it into the user's prompt.
+	ChatMessagePartTypeSkillInvocation ChatMessagePartType = "skill-invocation"
 	// ChatMessagePartTypeHookContext is model context injected into a user
 	// prompt by a lifecycle hook. It is included in model prompt assembly
 	// and stripped from every client-facing conversion; the server rejects
@@ -505,6 +518,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeContextFile,
 		ChatMessagePartTypeSkill,
 		ChatMessagePartTypeWorkspaceFileReference,
+		ChatMessagePartTypeSkillInvocation,
 		ChatMessagePartTypeHookContext,
 		ChatMessagePartTypeHookNotice,
 	}
@@ -638,16 +652,29 @@ type ChatMessagePart struct {
 	// workspace agent. Internal only: same purpose as
 	// ContextFileOS.
 	ContextFileDirectory string `json:"context_file_directory,omitempty" typescript:"-"`
-	// SkillName is the kebab-case name of a discovered skill
-	// from the workspace's .agents/skills/ directory.
-	SkillName string `json:"skill_name" variants:"skill"`
+	// SkillName is the kebab-case name of the skill.
+	SkillName string `json:"skill_name" variants:"skill,skill-invocation"`
+	// SkillSource is where the invoked skill of a skill-invocation
+	// part is stored.
+	SkillSource ChatSkillSource `json:"skill_source" variants:"skill-invocation"`
+	// SkillBody is the invoked skill body loaded when the message was
+	// sent, so past turns keep the instructions the model received.
+	// Internal only: stripped before API responses.
+	SkillBody string `json:"skill_body,omitempty" typescript:"-" swaggerignore:"true"`
 	// SkillDescription is the short description from the skill's
 	// SKILL.md frontmatter.
 	SkillDescription string `json:"skill_description,omitempty" variants:"skill?"`
 	// SkillDir is the absolute path to the skill directory inside
 	// the workspace filesystem. Internal only: used by
-	// read_skill/read_skill_file tools to locate skill files.
+	// read_skill/read_skill_file tools to locate skill files, and
+	// shown to the model for an invoked workspace skill so it can
+	// run the skill's scripts.
 	SkillDir string `json:"skill_dir,omitempty" typescript:"-"`
+	// SkillWorkspaceID is the workspace whose filesystem holds the
+	// SkillDir of an invoked workspace skill. Internal only: the
+	// prompt shows SkillDir only while the chat stays bound to this
+	// workspace.
+	SkillWorkspaceID uuid.UUID `json:"skill_workspace_id,omitzero" format:"uuid" typescript:"-" swaggerignore:"true"`
 	// ContextFileSkillMetaFile is the basename of the skill
 	// meta file (e.g. "SKILL.md") at the time of persistence.
 	// Internal only: restored on subsequent turns so the
@@ -691,7 +718,9 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileOS = ""
 	p.ContextFileDirectory = ""
 	p.SkillDir = ""
+	p.SkillWorkspaceID = uuid.Nil
 	p.ContextFileSkillMetaFile = ""
+	p.SkillBody = ""
 }
 
 // ChatMessageText builds a text chat message part.
@@ -764,6 +793,16 @@ func ChatMessageWorkspaceFileReference(workspaceID uuid.UUID, path, name string,
 	}
 }
 
+// ChatMessageSkillInvocation builds a skill-invocation chat message
+// part without a body; the server loads the body at send time.
+func ChatMessageSkillInvocation(source ChatSkillSource, name string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:        ChatMessagePartTypeSkillInvocation,
+		SkillSource: source,
+		SkillName:   name,
+	}
+}
+
 // ChatMessageSource builds a source chat message part.
 func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 	return ChatMessagePart{
@@ -782,6 +821,17 @@ const (
 	ChatInputPartTypeFile                   ChatInputPartType = "file"
 	ChatInputPartTypeFileReference          ChatInputPartType = "file-reference"
 	ChatInputPartTypeWorkspaceFileReference ChatInputPartType = "workspace-file-reference"
+	ChatInputPartTypeSkillInvocation        ChatInputPartType = "skill-invocation"
+)
+
+// ChatSkillSource identifies where an invoked skill is stored.
+type ChatSkillSource string
+
+const (
+	ChatSkillSourcePersonal     ChatSkillSource = "personal"
+	ChatSkillSourceOrganization ChatSkillSource = "org"
+	ChatSkillSourceProject      ChatSkillSource = "project"
+	ChatSkillSourceWorkspace    ChatSkillSource = "workspace"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
@@ -806,6 +856,11 @@ type ChatInputPart struct {
 	// to, as returned by the upload endpoint. It must match the chat's
 	// currently bound workspace.
 	WorkspaceFileWorkspaceID uuid.UUID `json:"workspace_file_workspace_id,omitempty" format:"uuid"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeSkillInvocation. The server loads the skill
+	// as the chat owner when the message is sent.
+	SkillSource ChatSkillSource `json:"skill_source,omitempty"`
+	SkillName   string          `json:"skill_name,omitempty"`
 }
 
 // SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.
