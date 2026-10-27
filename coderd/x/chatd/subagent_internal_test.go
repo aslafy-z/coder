@@ -4343,6 +4343,10 @@ func TestSubagentManagerAwait(t *testing.T) {
 				insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
 			}
 
+			payload := requireToolResponseMap(t, runSubagentTool(ctx, t, server, parent, parent.LastModelConfigID, "wait_agent", waitAgentArgs{ChatID: child.ID.String()}), false)
+			require.Equal(t, tc.wantLastError, payload["last_error"])
+			require.NotContains(t, payload, "timed_out")
+
 			result, err := newSubagentManager(server, func() database.Chat { return parent }, parent.LastModelConfigID).Await(ctx, waitAgentArgs{ChatID: child.ID.String()})
 			require.NoError(t, err)
 			require.Equal(t, child.ID.String(), result.ChatID)
@@ -4427,6 +4431,8 @@ func TestSubagentManagerList(t *testing.T) {
 	require.Equal(t, children[0].ID.String(), result.Agents[0].ChatID)
 	typesByID := make(map[string]string, len(result.Agents))
 	for _, agent := range result.Agents {
+		require.NotEmpty(t, agent.CreatedAt)
+		require.NotEmpty(t, agent.UpdatedAt)
 		typesByID[agent.ChatID] = agent.Type
 	}
 	require.NotContains(t, typesByID, children[3].ID.String())
@@ -4440,6 +4446,9 @@ func TestSubagentManagerList(t *testing.T) {
 	second, err := manager.List(ctx, listAgentsArgs{Limit: &limit, Offset: &offset})
 	require.NoError(t, err)
 	require.Len(t, second.Agents, 1)
+	require.False(t, second.HasMore)
+	require.Equal(t, 3, second.Total)
+	require.Equal(t, 1, second.Returned)
 	require.NotContains(t, []string{first.Agents[0].ChatID, first.Agents[1].ChatID}, second.Agents[0].ChatID)
 	zero := 0
 	clamped, err := manager.List(ctx, listAgentsArgs{Limit: &zero})
