@@ -3699,7 +3699,7 @@ func TestWaitAgentDoesNotRelayRegularSubagentAttachments(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 
 	insertedFile := insertLinkedChatFile(
 		ctx,
@@ -3900,7 +3900,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		// signalWake from CreateChat may trigger immediate processing.
 		// Wait for it to settle, then reset chats to the state we need.
-		WaitUntilIdleForTest(server)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
@@ -3979,7 +3979,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		// This case should return immediately, so use the shared
 		// real-clock server instead of a mock clock.
-		WaitUntilIdleForTest(server)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 		gotChat, report, err := server.awaitSubagentCompletion(
@@ -4240,7 +4240,7 @@ func TestSubagentManagerAwait(t *testing.T) {
 		ctx := chatdTestContext(t)
 		user, org, model := seedInternalChatDeps(t, db)
 		parent, child := createParentChildChats(ctx, t, server, user, org, model)
-		WaitUntilIdleForTest(server)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
 		resultCh := make(chan subagentAwaitResult, 1)
@@ -4275,7 +4275,7 @@ func TestSubagentManagerAwait(t *testing.T) {
 		ctx := chatdTestContext(t)
 		user, org, model := seedInternalChatDeps(t, db)
 		parent, child := createParentChildChats(ctx, t, server, user, org, model)
-		WaitUntilIdleForTest(server)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
 		resultCh := make(chan subagentAwaitResult, 1)
@@ -4333,7 +4333,7 @@ func TestSubagentManagerAwait(t *testing.T) {
 			ctx := chatdTestContext(t)
 			user, org, model := seedInternalChatDeps(t, db)
 			parent, child := createParentChildChats(ctx, t, server, user, org, model)
-			WaitUntilIdleForTest(server)
+			require.NoError(t, WaitUntilIdleForTest(ctx, server))
 			switch {
 			case tc.chatError != nil:
 				setChatStatusWithError(ctx, t, db, child.ID, database.ChatStatusError, *tc.chatError)
@@ -4376,7 +4376,7 @@ func TestSubagentManagerSendAndInterrupt(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	manager := newSubagentManager(server, func() database.Chat { return parent }, parent.LastModelConfigID)
 
 	_, _, err := manager.Send(ctx, messageAgentArgs{ChatID: child.ID.String(), Message: "  "})
@@ -4421,7 +4421,7 @@ func TestSubagentManagerList(t *testing.T) {
 		require.NoError(t, err)
 		children = append(children, child)
 	}
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	_, err = db.ArchiveChatByID(ctx, children[3].ID)
 	require.NoError(t, err)
 	// Touching the oldest child last makes it the most recently updated.
