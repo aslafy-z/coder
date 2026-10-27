@@ -133,7 +133,8 @@ export function useConversationEditingState(deps: {
 		readonly ChatMessagePart[]
 	>([]);
 
-	// Seeds a remounted composer with text, or with editorState when set.
+	// Remounts the composer showing editorState, or text when editorState is
+	// unset.
 	const showInComposer = (text: string, editorState: string | undefined) => {
 		setDraftState({
 			editorInitialValue: text,
@@ -185,9 +186,9 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Returns a rollback for a failed request. An edit comes back alone, and
-	// what the composer showed during it becomes the compose draft that Cancel
-	// restores.
+	// Records the request in flight and returns a rollback for its failure.
+	// After a failed edit, what the composer showed during the request becomes
+	// the compose draft that Cancel restores.
 	const removeSubmittedContent = (message: string) => {
 		const snapshot: RequestInFlight = {
 			message,
@@ -224,8 +225,8 @@ export function useConversationEditingState(deps: {
 		};
 	};
 
-	// Also records the stored draft in storedDraftRef for the check after
-	// unmount in handleSendFromInput.
+	// Stores draft, or removes the stored draft when draft is empty, and
+	// records the stored value in storedDraftRef for the check after unmount.
 	const saveDraft = (draft: string | undefined) => {
 		if (!draft) {
 			localStorage.removeItem(draftStorageKey);
@@ -242,7 +243,7 @@ export function useConversationEditingState(deps: {
 
 	// After a successful request the composer shows the chat's draft: for a
 	// send what was typed since, for an edit the compose draft as edited since.
-	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
+	const finalizeSuccessfulRequest = (editedMessageID: number | undefined) => {
 		saveDraft(
 			hasContent(composerContent())
 				? serializedEditorStateRef.current
@@ -293,7 +294,7 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 
-		finalizeSuccessfulSend(editedMessageID);
+		finalizeSuccessfulRequest(editedMessageID);
 	};
 
 	const handleContentChange = (
