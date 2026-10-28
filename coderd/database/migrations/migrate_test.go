@@ -408,6 +408,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
 		{"Migration000621Skills", 621, testMigration000621Skills},
 		{"Migration000625TemplateVersionScriptOrderUsage", 625, testMigration000625TemplateVersionScriptOrderUsage},
+		{"Migration000635DeleteMCPToolSearchExperimentRule", 635, testMigration000635DeleteMCPToolSearchExperimentRule},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -4592,6 +4593,27 @@ func testMigration000625TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql
 	require.Equal(t, legacyVersion.Name, updated.Name)
 	require.Zero(t, updated.ScriptOrderDataSourceCount)
 	require.Zero(t, updated.ScriptOrderRuleCount)
+}
+
+// testMigration000635DeleteMCPToolSearchExperimentRule checks that the upgrade
+// deletes the stored rule of mcp-tool-search, which no longer accepts runtime
+// rules, and keeps the rules of other experiments.
+func testMigration000635DeleteMCPToolSearchExperimentRule(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 635
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := sqlDB.ExecContext(ctx, `INSERT INTO site_configs (key, value) VALUES ('experiment_rule:mcp-tool-search', '{}'), ('experiment_rule:example', '{}')`)
+	require.NoError(t, err)
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	var keys pq.StringArray
+	err = sqlDB.QueryRowContext(ctx, `SELECT array_agg(key ORDER BY key) FROM site_configs
+		WHERE key IN ('experiment_rule:mcp-tool-search', 'experiment_rule:example')`).Scan(&keys)
+	require.NoError(t, err)
+	require.Equal(t, []string{"experiment_rule:example"}, []string(keys))
 }
 
 func TestMigration000627WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) {
