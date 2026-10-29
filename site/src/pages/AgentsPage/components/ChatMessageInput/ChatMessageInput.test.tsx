@@ -835,7 +835,7 @@ describe("ChatMessageInput", () => {
 				],
 			],
 			[
-				"file-reference chip",
+				"file-reference chip and no skill chip",
 				[{ type: "text", text: "Explain " }, fileReferencePart],
 			],
 		])(
